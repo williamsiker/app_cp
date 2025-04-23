@@ -55,12 +55,6 @@ import com.example.lancelot.mcpe.components.EditorScaffold
 import kotlinx.serialization.Serializable
 import com.example.lancelot.viewmodel.BrowserViewModel
 
-data class Platform(
-    val name: String,
-    val icon: ImageVector,
-    val url: String,
-)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +83,6 @@ class MainActivity : ComponentActivity() {
             LancelotTheme {
                 val navController = rememberNavController()
                 val context = LocalContext.current
-                val db = remember { DatabaseProvider.getDatabase(context = context) }
                 NavHost(navController = navController, startDestination = Home) {
                     composable<Home> {
                         Scaffold(
@@ -121,7 +114,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable<ConfigPanel> {
-                        ConfigPanel(onPopStackNav = {navController.popBackStack()}, db)
+                        ConfigPanel(onPopStackNav = { navController.popBackStack() })
                     }
                 }
             }
@@ -175,114 +168,5 @@ fun PlatformSelector(
                     .padding(16.dp)
             )
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-fun WebViewScreen(
-    url: String,
-    onCodeEditorNavigation: () -> Unit
-) {
-    val webViewModel = viewModel<BrowserViewModel>()
-    var webView by remember { mutableStateOf<WebView?>(null) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
-
-    fun updateNavigationState(view: WebView?) {
-        canGoBack = view?.canGoBack() ?: false
-        canGoForward = view?.canGoForward() ?: false
-        println("canGoBack: $canGoBack, canGoForward: $canGoForward")
-    }
-    
-    LaunchedEffect(Unit) {
-        webViewModel.updateLastUrl(url)
-    }
-
-    val context = LocalContext.current
-    BackHandler {
-        if (webView?.canGoBack() == true) {
-            webView?.goBack()
-        }
-    }
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Browser") },
-                navigationIcon = {
-                    IconButton(onClick = { webView?.goBack() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            "Atrás",
-                            tint = if (canGoBack) Color.Unspecified else Color.Gray
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            if (webView?.canGoForward() == true) { // Double check to avoid crash
-                                webView?.goForward()
-                            } else {
-                                // Handle cases where forward navigation is not possible (optional)
-                            }
-                        },
-                        enabled = canGoForward
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, "Adelante")
-                    }
-                    IconButton(
-                        onClick = { webViewModel.toggleFab() }
-                    ) {
-                        Icon(
-                            if (webViewModel.showFab) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            "Toggle Editor Button"
-                        )
-                    }
-                }
-            )
-        }, floatingActionButton = {
-            if (webViewModel.showFab) {
-
-                FloatingActionButton(onClick = onCodeEditorNavigation) {
-                    Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
-                }
-            }
-        }
-    ) { padding ->
-        AndroidView(
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            updateNavigationState(view)
-                            url?.let { webViewModel.updateLastUrl(it) }
-                        }
-                    }
-
-                    updateNavigationState(this)
-                    // Listen for changes in navigation history
-                    setOnKeyListener(android.view.View.OnKeyListener { _, keyCode, event ->
-                        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP && canGoBack) {
-                            goBack()
-                            return@OnKeyListener true
-                        }
-                        false
-                    })
-
-                    loadUrl(url)
-                }.also { webView = it }
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        )
     }
 }

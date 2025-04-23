@@ -12,21 +12,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.lancelot.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LanguagesTab(languageDAO: LanguageDAO) {
-    var languages by remember { mutableStateOf(emptyList<Languages>()) }
+fun LanguagesTab(
+    languages: List<Languages>,
+    onAddLanguage: (String, String?) -> Unit,
+    onDeleteLanguage: (Long) -> Unit
+) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Languages?>(null) }
     var newLanguageName by remember { mutableStateOf("") }
     var newLanguageDescription by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        languages = languageDAO.getAllLanguages()
-    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Add Language Button
@@ -106,18 +103,11 @@ fun LanguagesTab(languageDAO: LanguageDAO) {
                 TextButton(
                     onClick = {
                         if (newLanguageName.isNotBlank()) {
-                            scope.launch {
-                                languageDAO.insertLanguages(
-                                    Languages(
-                                        name = newLanguageName,
-                                        description = newLanguageDescription.takeIf { it.isNotBlank() }
-                                    )
-                                )
-                                languages = languageDAO.getAllLanguages()
-                                showAddDialog = false
-                                newLanguageName = ""
-                                newLanguageDescription = ""
-                            }
+                            onAddLanguage(newLanguageName, 
+                                newLanguageDescription.takeIf { it.isNotBlank() })
+                            showAddDialog = false
+                            newLanguageName = ""
+                            newLanguageDescription = ""
                         }
                     }
                 ) {
@@ -143,11 +133,8 @@ fun LanguagesTab(languageDAO: LanguageDAO) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            languageDAO.deleteLanguage(language.id)
-                            languages = languageDAO.getAllLanguages()
-                            showDeleteDialog = null
-                        }
+                        onDeleteLanguage(language.id)
+                        showDeleteDialog = null
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error

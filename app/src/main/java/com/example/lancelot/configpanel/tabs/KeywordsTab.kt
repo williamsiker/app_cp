@@ -13,17 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.lancelot.*
 import com.example.lancelot.configpanel.util.ConfigImporter
+import com.example.lancelot.configpanel.viewmodel.ConfigurationState
+import org.koin.compose.getKoin
 import kotlinx.coroutines.launch
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.ui.graphics.vector.ImageVector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,56 +46,44 @@ private fun ActionIconButton(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KeywordsTab(database: AppDatabase) {
+fun KeywordsTab(
+    state: ConfigurationState,
+    onLanguageSelect: (Languages?) -> Unit,
+    onAddKeyword: (String, Long, Long?, Long?) -> Unit,
+    onDeleteKeyword: (Long) -> Unit,
+    onAddGroup: (String, Long, Long?) -> Unit,
+    onDeleteGroup: (Long) -> Unit,
+    onUpdateGroupStyle: (Long, Long?) -> Unit,
+    onGroupSelect: (KeywordGroup?) -> Unit,
+    onStyleSelect: (Styles?) -> Unit
+) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var selectedLanguage by remember { mutableStateOf<Languages?>(null) }
-    var languages by remember { mutableStateOf(emptyList<Languages>()) }
-    var keywords by remember { mutableStateOf(emptyList<Keywords>()) }
-    var groups by remember { mutableStateOf(emptyList<KeywordGroup>()) }
-    var styles by remember { mutableStateOf(emptyList<Styles>()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showAddGroupDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf<KeywordGroup?>(null) }
     var showDeleteDialog by remember { mutableStateOf<Keywords?>(null) }
     var showDeleteGroupDialog by remember { mutableStateOf<KeywordGroup?>(null) }
-    var selectedGroup by remember { mutableStateOf<KeywordGroup?>(null) }
     var newKeyword by remember { mutableStateOf("") }
     var newGroupName by remember { mutableStateOf("") }
-    var selectedStyle by remember { mutableStateOf<Styles?>(null) }
     var isLanguageDropdownExpanded by remember { mutableStateOf(false) }
     var isStyleDropdownExpanded by remember { mutableStateOf(false) }
+
+    val configImporter = getKoin().get<ConfigImporter>()
     val scope = rememberCoroutineScope()
-
-    val configImporter = remember { ConfigImporter(context, database) }
-
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            if (selectedLanguage != null) {
+            if (state.selectedLanguage != null) {
                 scope.launch {
-                    configImporter.importKeywords(uri, selectedLanguage!!.id, snackbarHostState)
-                    keywords = database.keywordDAO().getAllKeywordsForLanguage(selectedLanguage!!.id)
-                    groups = database.keywordGroupDAO().getAllGroupsForLanguage(selectedLanguage!!.id)
+                    configImporter.importKeywords(uri, state.selectedLanguage.id, snackbarHostState)
                 }
             } else {
                 scope.launch {
                     snackbarHostState.showSnackbar("Please select a language first")
                 }
             }
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        languages = database.languageDAO().getAllLanguages()
-        styles = database.styleDAO().getAllStyles()
-    }
-
-    LaunchedEffect(selectedLanguage) {
-        selectedLanguage?.let { language ->
-            keywords = database.keywordDAO().getAllKeywordsForLanguage(language.id)
-            groups = database.keywordGroupDAO().getAllGroupsForLanguage(language.id)
         }
     }
 
@@ -115,7 +100,7 @@ fun KeywordsTab(database: AppDatabase) {
                     .padding(16.dp)
             ) {
                 OutlinedTextField(
-                    value = selectedLanguage?.name ?: "Select Language",
+                    value = state.selectedLanguage?.name ?: "Select Language",
                     onValueChange = { },
                     readOnly = true,
                     modifier = Modifier
@@ -126,12 +111,12 @@ fun KeywordsTab(database: AppDatabase) {
                     expanded = isLanguageDropdownExpanded,
                     onDismissRequest = { isLanguageDropdownExpanded = false }
                 ) {
-                    languages.forEach { language ->
+                    state.languages.forEach { language ->
                         DropdownMenuItem(
                             text = { Text(language.name) },
                             onClick = {
-                                selectedLanguage = language
-                                selectedGroup = null
+                                onLanguageSelect(language)
+                                onGroupSelect(null)
                                 isLanguageDropdownExpanded = false
                             }
                         )
@@ -139,7 +124,7 @@ fun KeywordsTab(database: AppDatabase) {
                 }
             }
 
-            selectedLanguage?.let { language ->
+            state.selectedLanguage?.let { language ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -173,13 +158,13 @@ fun KeywordsTab(database: AppDatabase) {
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 ) {
-                    items(groups) { group ->
-                        val isSelected = group == selectedGroup
+                    items(state.groups) { group ->
+                        val isSelected = group == state.selectedGroup
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
-                            onClick = { selectedGroup = if (isSelected) null else group }
+                            onClick = { onGroupSelect(if (isSelected) null else group) }
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 // Group Header
@@ -187,7 +172,7 @@ fun KeywordsTab(database: AppDatabase) {
                                     headlineContent = { Text(group.name) },
                                     supportingContent = { 
                                         group.styleId?.let { styleId ->
-                                            styles.find { it.id == styleId }?.let { style ->
+                                            state.styles.find { it.id == styleId }?.let { style ->
                                                 Text("Style: ${style.name}")
                                             }
                                         }
@@ -206,7 +191,7 @@ fun KeywordsTab(database: AppDatabase) {
                                                     contentDescription = "Delete group"
                                                 )
                                             }
-                                            IconButton(onClick = { selectedGroup = if (isSelected) null else group }) {
+                                            IconButton(onClick = { onGroupSelect(if (isSelected) null else group) }) {
                                                 Icon(
                                                     if (isSelected) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                                     contentDescription = if (isSelected) "Collapse" else "Expand"
@@ -228,7 +213,7 @@ fun KeywordsTab(database: AppDatabase) {
                                             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                                     ) {
                                         // Keywords List
-                                        keywords.filter { it.groupId == group.id }.forEach { keyword ->
+                                        state.keywords.filter { it.groupId == group.id }.forEach { keyword ->
                                             ListItem(
                                                 headlineContent = { Text(keyword.keyword) },
                                                 trailingContent = {
@@ -262,7 +247,10 @@ fun KeywordsTab(database: AppDatabase) {
     // Style Selection Dialog
     showStyleDialog?.let { group ->
         AlertDialog(
-            onDismissRequest = { showStyleDialog = null },
+            onDismissRequest = { 
+                showStyleDialog = null
+                onStyleSelect(null)
+            },
             title = { Text("Change Group Style") },
             text = {
                 Column {
@@ -272,7 +260,7 @@ fun KeywordsTab(database: AppDatabase) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedTextField(
-                            value = selectedStyle?.name ?: "Select Style",
+                            value = state.selectedStyle?.name ?: "Select Style",
                             onValueChange = { },
                             readOnly = true,
                             modifier = Modifier
@@ -283,11 +271,11 @@ fun KeywordsTab(database: AppDatabase) {
                             expanded = isStyleDropdownExpanded,
                             onDismissRequest = { isStyleDropdownExpanded = false }
                         ) {
-                            styles.forEach { style ->
+                            state.styles.forEach { style ->
                                 DropdownMenuItem(
                                     text = { Text(style.name) },
                                     onClick = {
-                                        selectedStyle = style
+                                        onStyleSelect(style)
                                         isStyleDropdownExpanded = false
                                     }
                                 )
@@ -299,18 +287,9 @@ fun KeywordsTab(database: AppDatabase) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            // Actualizar estilo del grupo y sus keywords
-                            database.keywordGroupDAO().updateGroupStyle(group.id, selectedStyle?.id)
-                            database.keywordDAO().updateGroupKeywordsStyle(group.id, selectedStyle?.id)
-                            
-                            // Recargar datos
-                            groups = database.keywordGroupDAO().getAllGroupsForLanguage(selectedLanguage!!.id)
-                            keywords = database.keywordDAO().getAllKeywordsForLanguage(selectedLanguage!!.id)
-                            
-                            showStyleDialog = null
-                            selectedStyle = null
-                        }
+                        onUpdateGroupStyle(group.id, state.selectedStyle?.id)
+                        showStyleDialog = null
+                        onStyleSelect(null)
                     }
                 ) {
                     Text("Apply")
@@ -319,7 +298,7 @@ fun KeywordsTab(database: AppDatabase) {
             dismissButton = {
                 TextButton(onClick = { 
                     showStyleDialog = null
-                    selectedStyle = null
+                    onStyleSelect(null)
                 }) {
                     Text("Cancel")
                 }
@@ -328,7 +307,7 @@ fun KeywordsTab(database: AppDatabase) {
     }
 
     // Add Group Dialog
-    if (showAddGroupDialog && selectedLanguage != null) {
+    if (showAddGroupDialog && state.selectedLanguage != null) {
         AlertDialog(
             onDismissRequest = { showAddGroupDialog = false },
             title = { Text("New Keyword Group") },
@@ -348,7 +327,7 @@ fun KeywordsTab(database: AppDatabase) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedTextField(
-                            value = selectedStyle?.name ?: "Select Style (Optional)",
+                            value = state.selectedStyle?.name ?: "Select Style (Optional)",
                             onValueChange = { },
                             readOnly = true,
                             modifier = Modifier
@@ -359,11 +338,11 @@ fun KeywordsTab(database: AppDatabase) {
                             expanded = isStyleDropdownExpanded,
                             onDismissRequest = { isStyleDropdownExpanded = false }
                         ) {
-                            styles.forEach { style ->
+                            state.styles.forEach { style ->
                                 DropdownMenuItem(
                                     text = { Text(style.name) },
                                     onClick = {
-                                        selectedStyle = style
+                                        onStyleSelect(style)
                                         isStyleDropdownExpanded = false
                                     }
                                 )
@@ -376,19 +355,14 @@ fun KeywordsTab(database: AppDatabase) {
                 TextButton(
                     onClick = {
                         if (newGroupName.isNotBlank()) {
-                            scope.launch {
-                                val groupId = database.keywordGroupDAO().insertGroup(
-                                    KeywordGroup(
-                                        name = newGroupName,
-                                        languageId = selectedLanguage!!.id,
-                                        styleId = selectedStyle?.id
-                                    )
-                                )
-                                groups = database.keywordGroupDAO().getAllGroupsForLanguage(selectedLanguage!!.id)
-                                showAddGroupDialog = false
-                                newGroupName = ""
-                                selectedStyle = null
-                            }
+                            onAddGroup(
+                                newGroupName,
+                                state.selectedLanguage.id,
+                                state.selectedStyle?.id
+                            )
+                            showAddGroupDialog = false
+                            newGroupName = ""
+                            onStyleSelect(null)
                         }
                     },
                     enabled = newGroupName.isNotBlank()
@@ -405,7 +379,7 @@ fun KeywordsTab(database: AppDatabase) {
     }
 
     // Add Keyword Dialog
-    if (showAddDialog && selectedLanguage != null) {
+    if (showAddDialog && state.selectedLanguage != null) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("Add Keyword") },
@@ -433,20 +407,15 @@ fun KeywordsTab(database: AppDatabase) {
                 TextButton(
                     onClick = {
                         if (newKeyword.isNotBlank()) {
-                            scope.launch {
-                                database.keywordDAO().insertKeyword(
-                                    Keywords(
-                                        keyword = newKeyword,
-                                        languageId = selectedLanguage!!.id,
-                                        groupId = selectedGroup?.id,
-                                        styleId = selectedStyle?.id
-                                    )
-                                )
-                                keywords = database.keywordDAO().getAllKeywordsForLanguage(selectedLanguage!!.id)
-                                showAddDialog = false
-                                newKeyword = ""
-                                selectedStyle = null
-                            }
+                            onAddKeyword(
+                                newKeyword,
+                                state.selectedLanguage.id,
+                                state.selectedGroup?.id,
+                                state.selectedStyle?.id
+                            )
+                            showAddDialog = false
+                            newKeyword = ""
+                            onStyleSelect(null)
                         }
                     },
                     enabled = newKeyword.isNotBlank()
@@ -473,11 +442,8 @@ fun KeywordsTab(database: AppDatabase) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            database.keywordDAO().deleteKeyword(keyword.id)
-                            keywords = database.keywordDAO().getAllKeywordsForLanguage(selectedLanguage!!.id)
-                            showDeleteDialog = null
-                        }
+                        onDeleteKeyword(keyword.id)
+                        showDeleteDialog = null
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -505,15 +471,8 @@ fun KeywordsTab(database: AppDatabase) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            database.keywordGroupDAO().deleteGroup(group.id)
-                            groups = database.keywordGroupDAO().getAllGroupsForLanguage(selectedLanguage!!.id)
-                            keywords = database.keywordDAO().getAllKeywordsForLanguage(selectedLanguage!!.id)
-                            if (selectedGroup == group) {
-                                selectedGroup = null
-                            }
-                            showDeleteGroupDialog = null
-                        }
+                        onDeleteGroup(group.id)
+                        showDeleteGroupDialog = null
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error

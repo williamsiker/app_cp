@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -34,6 +36,7 @@ import com.example.lancelot.mcpe.model.TextState
 import com.example.lancelot.utils.FileUtils
 import kotlinx.coroutines.launch
 import java.io.File
+
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,7 +63,8 @@ fun EditorScaffold(
     val lastSelectionRef = remember { mutableStateOf<TextRange?>(null) }
     val configuration = LocalConfiguration.current
 
-    // Efecto para manejar el scroll cuando aparece el teclado
+    var isOnSnippet = remember {mutableStateOf(false)}
+
     LaunchedEffect(imeVisible, currentFile?.content?.selection) {
         currentFile?.content?.let { textState ->
             if (imeVisible && textState.selection != TextRange.Zero && textState.selection != lastSelectionRef.value) {
@@ -166,8 +170,15 @@ fun EditorScaffold(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { onConfigNavigation() }) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
+                        if(!isOnSnippet.value) {
+                            IconButton(onClick = { onConfigNavigation() }) {
+                                Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
+                            }
+                        } else {
+                            NavigateSnippetActions(
+                                onNavigateBack = {},
+                                onNavigateForward = {}
+                            )
                         }
                     }
                 )
@@ -321,6 +332,25 @@ fun EditorScaffold(
                 showBottomSheet = false
             },
             onDismiss = { showBottomSheet = false }
+        )
+    }
+}
+
+@Composable
+fun NavigateSnippetActions(
+    onNavigateBack: () -> Unit,
+    onNavigateForward: () -> Unit
+) {
+    IconButton(onClick = { onNavigateBack() }) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Regresar"
+        )
+    }
+    IconButton(onClick = { onNavigateForward() }) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = "Avanzar"
         )
     }
 }

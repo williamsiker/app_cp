@@ -19,9 +19,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextLayoutResult
-import com.example.lancelot.AppTheme
 import com.example.lancelot.mcpe.model.TextState
 import com.example.lancelot.mcpe.state.EditorTextFieldState
+import com.example.lancelot.ui.theme.AppTheme
 
 @Composable
 internal fun EditorTextField(

@@ -20,10 +20,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import com.example.lancelot.AppTheme
 import com.example.lancelot.mcpe.model.TextState
 import com.example.lancelot.mcpe.state.EditorTextFieldState
 import com.example.lancelot.mcpe.utils.Paddings
+import com.example.lancelot.ui.theme.AppTheme
 
 @Composable
 internal fun LineNumbers(

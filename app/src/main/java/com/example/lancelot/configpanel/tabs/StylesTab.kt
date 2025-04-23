@@ -23,11 +23,15 @@ import com.example.lancelot.*
 import com.example.lancelot.configpanel.util.ConfigImporter
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StylesTab(styleDAO: StyleDAO) {
+fun StylesTab(
+    styles: List<Styles>,
+    onAddStyle: (String, String, Int, Boolean, Boolean, Boolean) -> Unit,
+    onDeleteStyle: (Long) -> Unit
+) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var styles by remember { mutableStateOf(emptyList<Styles>()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Styles?>(null) }
     var newStyleName by remember { mutableStateOf("") }
@@ -38,7 +42,7 @@ fun StylesTab(styleDAO: StyleDAO) {
     var isItalic by remember { mutableStateOf(false) }
     var isUnderline by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    
+
     val configImporter = remember { ConfigImporter(context, DatabaseProvider.getDatabase(context)) }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -46,13 +50,8 @@ fun StylesTab(styleDAO: StyleDAO) {
         uri?.let {
             scope.launch {
                 configImporter.importStyles(uri, snackbarHostState)
-                styles = styleDAO.getAllStyles()
             }
         }
-    }
-
-    LaunchedEffect(Unit) {
-        styles = styleDAO.getAllStyles()
     }
 
     Scaffold(
@@ -192,26 +191,21 @@ fun StylesTab(styleDAO: StyleDAO) {
                 TextButton(
                     onClick = {
                         if (newStyleName.isNotBlank() && newStyleSize.isNotBlank()) {
-                            scope.launch {
-                                styleDAO.insertStyle(
-                                    Styles(
-                                        name = newStyleName,
-                                        color = selectedColor.toHexString(),
-                                        sizeFont = newStyleSize.toIntOrNull() ?: 12,
-                                        isBold = isBold,
-                                        isItalic = isItalic,
-                                        isUnderline = isUnderline
-                                    )
-                                )
-                                styles = styleDAO.getAllStyles()
-                                showAddDialog = false
-                                newStyleName = ""
-                                selectedColor = Color.White
-                                newStyleSize = "12"
-                                isBold = false
-                                isItalic = false
-                                isUnderline = false
-                            }
+                            onAddStyle(
+                                newStyleName,
+                                selectedColor.toHexString(),
+                                newStyleSize.toIntOrNull() ?: 12,
+                                isBold,
+                                isItalic,
+                                isUnderline
+                            )
+                            showAddDialog = false
+                            newStyleName = ""
+                            selectedColor = Color.White
+                            newStyleSize = "12"
+                            isBold = false
+                            isItalic = false
+                            isUnderline = false
                         }
                     }
                 ) {
@@ -249,7 +243,6 @@ fun StylesTab(styleDAO: StyleDAO) {
         )
     }
 
-    // Delete Confirmation Dialog
     showDeleteDialog?.let { style ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
@@ -260,11 +253,8 @@ fun StylesTab(styleDAO: StyleDAO) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        scope.launch {
-                            styleDAO.deleteStyle(style.id)
-                            styles = styleDAO.getAllStyles()
-                            showDeleteDialog = null
-                        }
+                        onDeleteStyle(style.id)
+                        showDeleteDialog = null
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -280,4 +270,11 @@ fun StylesTab(styleDAO: StyleDAO) {
             }
         )
     }
+}
+
+fun Color.toHexString(): String {
+    val red = (red * 255).toInt()
+    val green = (green * 255).toInt()
+    val blue = (blue * 255).toInt()
+    return String.format("#%02x%02x%02x", red, green, blue)
 }

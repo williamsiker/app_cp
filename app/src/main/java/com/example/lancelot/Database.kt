@@ -1,9 +1,16 @@
 package com.example.lancelot
 
-import android.content.Context
-import androidx.room.*
-import androidx.room.migration.AutoMigrationSpec
-import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.Insert
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.RoomDatabase
 
 @Entity(tableName = "languages")
 data class Languages(

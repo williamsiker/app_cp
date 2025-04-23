@@ -13,8 +13,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
-import com.example.lancelot.AppTheme
 import com.example.lancelot.mcpe.model.TextState
+import com.example.lancelot.ui.theme.AppTheme
 
 @Stable
 class EditorTextFieldState(
