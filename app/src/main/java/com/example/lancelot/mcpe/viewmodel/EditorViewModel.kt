@@ -14,7 +14,8 @@ data class CodeFile(
     val name: String,
     val content: TextState = TextState(""),
     val uri: Uri? = null,
-    val isUnsaved: Boolean = false
+    val isUnsaved: Boolean = false,
+    val mimeType: String = "text/plain"
 )
 
 data class EditorState(

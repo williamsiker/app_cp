@@ -67,25 +67,71 @@ class TextState(
         insert("$char$pair", 1)
     }
 
+    private fun shouldIncreaseIndent(line: String): Boolean {
+        val trimmedLine = line.trim()
+        return trimmedLine.endsWith("{") || 
+               trimmedLine.endsWith("(") ||
+               trimmedLine.endsWith("[") ||
+               (trimmedLine.contains("class") && !trimmedLine.contains(";")) ||
+               (trimmedLine.contains("struct") && !trimmedLine.contains(";")) ||
+               trimmedLine.startsWith("if") ||
+               trimmedLine.startsWith("else") ||
+               trimmedLine.startsWith("for") ||
+               trimmedLine.startsWith("while") ||
+               trimmedLine.startsWith("do")
+    }
+
+    private fun shouldDecreaseIndent(line: String): Boolean {
+        val trimmedLine = line.trim()
+        return trimmedLine.startsWith("}") || 
+               trimmedLine.startsWith(")") ||
+               trimmedLine.startsWith("]")
+    }
+
+    private fun getCurrentLineIndentLevel(): Int {
+        val lineStart = getLineStartOffset()
+        var currentIndent = 0
+        var i = lineStart
+        while (i < text.length && text[i] == ' ') {
+            currentIndent++
+            i++
+        }
+        return currentIndent / INDENT_SIZE
+    }
+
+    private fun getAutoIndentLevel(): Int {
+        val currentLine = getCurrentLine()
+        var indentLevel = getCurrentLineIndentLevel()
+        
+        if (shouldDecreaseIndent(currentLine)) {
+            indentLevel = (indentLevel - 1).coerceAtLeast(0)
+        }
+        
+        if (shouldIncreaseIndent(currentLine)) {
+            indentLevel++
+        }
+        
+        return indentLevel
+    }
+
+    private fun getCurrentLine(): String {
+        val lineStart = getLineStartOffset()
+        val lineEnd = text.indexOf(LINE_SEPARATOR, caretOffset)
+        return if (lineEnd == -1) {
+            text.substring(lineStart)
+        } else {
+            text.substring(lineStart, lineEnd)
+        }
+    }
+
     fun newLineWithIndent() {
         if (isSelected()) return
-        val preCaretChar = if (caretOffset > 0) text[caretOffset - 1] else ""
-        val pairChar = pairChars[preCaretChar]
-        if (pairChar != null && pairChar != preCaretChar) { // brackets
-            val currentLineIndent = " ".repeat(getLineIndent())
-            val preCaretStr = LINE_SEPARATOR + currentLineIndent + indent
-            val postCaretStr = if (caretOffset < text.length && text[caretOffset] == pairChar) {
-                LINE_SEPARATOR + currentLineIndent
-            } else {
-                ""
-            }
-            text = text.replaceRange(caretOffset, caretOffset, preCaretStr + postCaretStr)
-            caretOffset += preCaretStr.length
-        } else {
-            val indentBeforeCaret = " ".repeat(getLineIndent(beforeCaret = true))
-            text = text.replaceRange(caretOffset, caretOffset, LINE_SEPARATOR + indentBeforeCaret)
-            caretOffset += indentBeforeCaret.length + 1
-        }
+        
+        val indentLevel = getAutoIndentLevel()
+        val newIndent = " ".repeat(indentLevel * INDENT_SIZE)
+        
+        text = text.replaceRange(caretOffset, caretOffset, "$LINE_SEPARATOR$newIndent")
+        caretOffset += newIndent.length + 1
     }
 
     fun moveCaretToLineStartWithIndent(): Boolean {
@@ -176,6 +222,20 @@ class TextState(
 
     fun clearReferences() {
         if (highlightedReferenceRanges.isNotEmpty()) highlightedReferenceRanges.clear()
+    }
+
+    private fun adjustOffset(offset: Int): Int {
+        var correctedOffset = offset
+        if (!text[correctedOffset].isJavaIdentifierPart()) {
+            correctedOffset--
+        }
+        if (correctedOffset >= 0) {
+            val ch = text[correctedOffset]
+            if (ch == '\'' || ch == '"' || ch == ')' || ch == ']' || ch.isJavaIdentifierPart()) {
+                return correctedOffset
+            }
+        }
+        return offset
     }
 
     fun highlightReferences(textRange: TextRange) {

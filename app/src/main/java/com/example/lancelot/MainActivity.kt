@@ -15,9 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -46,6 +51,7 @@ import com.example.lancelot.configpanel.ConfigPanel
 import com.example.lancelot.ui.theme.LancelotTheme
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewCompat
+import com.example.lancelot.mcpe.components.EditorScaffold
 import kotlinx.serialization.Serializable
 import com.example.lancelot.viewmodel.BrowserViewModel
 
@@ -172,6 +178,7 @@ fun PlatformSelector(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebViewScreen(
@@ -182,6 +189,12 @@ fun WebViewScreen(
     var webView by remember { mutableStateOf<WebView?>(null) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
+
+    fun updateNavigationState(view: WebView?) {
+        canGoBack = view?.canGoBack() ?: false
+        canGoForward = view?.canGoForward() ?: false
+        println("canGoBack: $canGoBack, canGoForward: $canGoForward")
+    }
     
     LaunchedEffect(Unit) {
         webViewModel.updateLastUrl(url)
@@ -201,7 +214,7 @@ fun WebViewScreen(
                 navigationIcon = {
                     IconButton(onClick = { webView?.goBack() }) {
                         Icon(
-                            Icons.Default.ArrowBack,
+                            Icons.AutoMirrored.Filled.ArrowBack,
                             "Atrás",
                             tint = if (canGoBack) Color.Unspecified else Color.Gray
                         )
@@ -218,7 +231,7 @@ fun WebViewScreen(
                         },
                         enabled = canGoForward
                     ) {
-                        Icon(Icons.Default.ArrowForward, "Adelante")
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, "Adelante")
                     }
                     IconButton(
                         onClick = { webViewModel.toggleFab() }
@@ -254,9 +267,7 @@ fun WebViewScreen(
                         }
                     }
 
-                    // Enable back/forward history for the initial state
                     updateNavigationState(this)
-
                     // Listen for changes in navigation history
                     setOnKeyListener(android.view.View.OnKeyListener { _, keyCode, event ->
                         if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP && canGoBack) {
@@ -273,11 +284,5 @@ fun WebViewScreen(
                 .fillMaxSize()
                 .padding(padding)
         )
-    }
-
-    fun updateNavigationState(view: WebView?) {
-        canGoBack = view?.canGoBack() ?: false
-        canGoForward = view?.canGoForward() ?: false
-        println("canGoBack: $canGoBack, canGoForward: $canGoForward")
     }
 }

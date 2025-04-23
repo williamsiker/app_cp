@@ -116,7 +116,8 @@ fun EditorScaffold(
                     viewModel.updateFile(file.copy(
                         uri = uri,
                         name = getFileName(uri),
-                        isUnsaved = false
+                        isUnsaved = false,
+                        mimeType = context.contentResolver.getType(uri) ?: FileUtils.getMimeType(getFileName(uri))
                     ))
                 }
             }
@@ -206,8 +207,7 @@ fun EditorScaffold(
                                                 viewModel.updateFile(currentFile.copy(isUnsaved = false))
                                             }
                                         } ?: run {
-                                            // Si no tiene URI, abrir diálogo para guardar como
-                                            saveFileLauncher.launch(currentFile.name, FileUtils.getMimeType(currentFile.name))
+                                            saveFileLauncher.launch(currentFile.name)
                                         }
                                     }
                                 ) {
@@ -288,10 +288,11 @@ fun EditorScaffold(
                         if (newFileName.isNotBlank()) {
                             val newFile = CodeFile(
                                 name = newFileName,
-                                isUnsaved = true
+                                isUnsaved = true,
+                                mimeType = FileUtils.getMimeType(newFileName)
                             )
                             viewModel.setCurrentFile(newFile)
-                            saveFileLauncher.launch(newFileName, FileUtils.getMimeType(newFileName))
+                            saveFileLauncher.launch(newFileName)
                             showNewFileDialog = false
                             newFileName = ""
                         }

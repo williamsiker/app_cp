@@ -39,12 +39,60 @@ class EditorTextFieldState(
         private set
 
     fun onTextFieldValueChange(textFieldValue: TextFieldValue) {
+        val oldText = textState.text
+        val newText = textFieldValue.text
+        val wasEnterPressed = newText.length > oldText.length && 
+                            textFieldValue.selection.end > 0 &&
+                            newText[textFieldValue.selection.end - 1] == '\n'
+        
         textState.text = textFieldValue.text
         _selection = textFieldValue.selection
         textState.caretOffset =
             if (_selection.collapsed) _selection.start
             else -1
         textState.selection = _selection
+
+        if (wasEnterPressed) {
+            handleAutoIndent()
+        }
+    }
+
+    private fun handleAutoIndent() {
+        val currentLine = getCurrentLine()
+        val indentLevel = calculateIndentLevel(currentLine)
+        val indent = " ".repeat(indentLevel * 3)
+        
+        val position = textState.caretOffset
+        textState.text = textState.text.replaceRange(position, position, indent)
+        textState.caretOffset = position + indent.length
+        _selection = TextRange(position + indent.length)
+    }
+
+    private fun getCurrentLine(): String {
+        val text = textState.text
+        val position = textState.caretOffset
+        val lineStart = text.lastIndexOf('\n', position - 2).let { if (it == -1) 0 else it + 1 }
+        val lineEnd = text.indexOf('\n', position).let { if (it == -1) text.length else it }
+        return text.substring(lineStart, lineEnd)
+    }
+
+    private fun calculateIndentLevel(line: String): Int {
+        var level = getLineIndentLevel(line)
+        
+        if (line.trim().endsWith("{")) {
+            level++
+        }
+        
+        return level
+    }
+
+    private fun getLineIndentLevel(line: String): Int {
+        var spaces = 0
+        for (char in line) {
+            if (char == ' ') spaces++
+            else break
+        }
+        return spaces / 4
     }
 
     fun onTextLayoutChange(textLayoutResult: TextLayoutResult) {
