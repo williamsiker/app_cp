@@ -25,18 +25,31 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.lancelot.configpanel.ConfigPanel
 import com.example.lancelot.ui.theme.LancelotTheme
 import kotlinx.serialization.Serializable
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import com.example.lancelot.viewmodel.BrowserViewModel
 
 data class Platform(
     val name: String,
@@ -47,6 +60,7 @@ data class Platform(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installSplashScreen()
         enableEdgeToEdge()
 
         val platforms = listOf(
@@ -70,7 +84,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             LancelotTheme {
                 val navController = rememberNavController()
-
+                val context = LocalContext.current
+                val db = remember { DatabaseProvider.getDatabase(context = context) }
                 NavHost(navController = navController, startDestination = Home) {
                     composable<Home> {
                         Scaffold(
@@ -95,7 +110,14 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable<CodeBlocks> {
-
+                        EditorScaffold(
+                            onConfigNavigation = {
+                                navController.navigate(ConfigPanel)
+                            }
+                        )
+                    }
+                    composable<ConfigPanel> {
+                        ConfigPanel(onPopStackNav = {navController.popBackStack()}, db)
                     }
                 }
             }
@@ -111,6 +133,9 @@ data class WebViewObj(val webUrl: String)
 
 @Serializable
 object CodeBlocks
+
+@Serializable
+object ConfigPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,28 +180,91 @@ fun WebViewScreen(
     url: String,
     onCodeEditorNavigation: () -> Unit
 ) {
-    val context = LocalContext.current
-    val webView = remember { WebView(context) }
-    webView.apply {
-        webViewClient = WebViewClient()
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        loadUrl(url)
+    val webViewModel = viewModel<BrowserViewModel>()
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        webViewModel.updateLastUrl(url)
     }
+
+    val context = LocalContext.current
     BackHandler {
-        if (webView.canGoBack()) {
-            webView.goBack() // Navegar hacia atrás dentro del WebView
+        if (webView?.canGoBack() == true) {
+            webView?.goBack()
         }
     }
+    
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Browser") },
+                navigationIcon = {
+                    IconButton(
+                        onClick = {
+                            if (webView?.canGoBack() == true) {
+                                webView?.goBack()
+                            }
+                        },
+                        enabled = canGoBack
+                    ) {
+                        Icon(Icons.Default.ArrowBack, "Atrás")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            if (webView?.canGoForward() == true) {
+                                webView?.goForward()
+                            }
+                        },
+                        enabled = canGoForward
+                    ) {
+                        Icon(Icons.Default.ArrowForward, "Adelante")
+                    }
+                    IconButton(
+                        onClick = { webViewModel.toggleFab() }
+                    ) {
+                        Icon(
+                            if (webViewModel.showFab) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            "Toggle Editor Button"
+                        )
+                    }
+                }
+            )
+        },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                onCodeEditorNavigation()
-            }) {
-                Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
+            AnimatedVisibility(
+                visible = webViewModel.showFab,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                FloatingActionButton(onClick = onCodeEditorNavigation) {
+                    Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
+                }
             }
         }
     ) { padding ->
-        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize().padding(padding))
+        AndroidView(
+            factory = { context ->
+                WebView(context).apply {
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            canGoBack = view?.canGoBack() ?: false
+                            canGoForward = view?.canGoForward() ?: false
+                            url?.let { webViewModel.updateLastUrl(it) }
+                        }
+                    }
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    loadUrl(url)
+                }.also { webView = it }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        )
     }
 }

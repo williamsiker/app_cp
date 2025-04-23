@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.Lancelot" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.MyApp.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/black</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_background</item>
+        <item name="postSplashScreenTheme">@android:style/Theme.Material.NoActionBar</item>
+    </style>
 </resources>
