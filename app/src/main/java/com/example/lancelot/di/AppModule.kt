@@ -11,7 +11,7 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { DatabaseProvider.getDatabase(get()) }
-    single { (context: Context) -> ConfigImporter(context, get()) }
+    single { ConfigImporter(get(), get()) }  // Changed this line to use the context from Koin
     viewModel { ConfigurationViewModel(get()) }
     viewModel { BrowserViewModel() }
     viewModel { EditorViewModel() }

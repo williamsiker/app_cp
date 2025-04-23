@@ -11,12 +11,15 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Entity(tableName = "languages")
 data class Languages(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val description: String? = null
+    val description: String? = null,
+    @ColumnInfo(defaultValue = "") val fileExtensions: String = ""
 )
 
 @Entity(tableName = "styles")
@@ -176,11 +179,18 @@ interface StyleDAO {
     suspend fun getStyleById(styleId: Long): Styles?
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE languages ADD COLUMN fileExtensions TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+
 @Database(
     entities = [Languages::class, Keywords::class, Styles::class, KeywordGroup::class],
-    version = 5,
+    version = 6,
     autoMigrations = [
-        AutoMigration(from = 4, to = 5)
+        AutoMigration(from = 4, to = 5),
     ],
     exportSchema = true
 )

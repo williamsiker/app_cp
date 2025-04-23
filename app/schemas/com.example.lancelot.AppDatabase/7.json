@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 5,
-    "identityHash": "0cb847204a411d41539c78a8e26c6f7b",
+    "version": 7,
+    "identityHash": "8318d98893e5efd04e86d2f3a4db9af0",
     "entities": [
       {
         "tableName": "languages",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `fileExtensions` TEXT DEFAULT '')",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `fileExtensions` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -28,8 +28,7 @@
           {
             "fieldPath": "fileExtensions",
             "columnName": "fileExtensions",
-            "affinity": "TEXT",
-            "defaultValue": "''"
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -282,7 +281,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0cb847204a411d41539c78a8e26c6f7b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8318d98893e5efd04e86d2f3a4db9af0')"
     ]
   }
 }

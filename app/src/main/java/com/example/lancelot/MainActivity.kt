@@ -54,6 +54,7 @@ import androidx.webkit.WebViewCompat
 import com.example.lancelot.mcpe.components.EditorScaffold
 import kotlinx.serialization.Serializable
 import com.example.lancelot.viewmodel.BrowserViewModel
+import org.koin.compose.KoinContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,41 +81,43 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            LancelotTheme {
-                val navController = rememberNavController()
-                val context = LocalContext.current
-                NavHost(navController = navController, startDestination = Home) {
-                    composable<Home> {
-                        Scaffold(
-                            topBar = { TopBar() }
-                        ) { innerPadding ->
-                            PlatformSelector(
-                                platforms = platforms,
-                                onPlatformSelected = { url ->
-                                    navController.navigate(WebViewObj(url))
-                                },
-                                modifier = Modifier.padding(innerPadding)
+            KoinContext {
+                LancelotTheme {
+                    val navController = rememberNavController()
+                    val context = LocalContext.current
+                    NavHost(navController = navController, startDestination = Home) {
+                        composable<Home> {
+                            Scaffold(
+                                topBar = { TopBar() }
+                            ) { innerPadding ->
+                                PlatformSelector(
+                                    platforms = platforms,
+                                    onPlatformSelected = { url ->
+                                        navController.navigate(WebViewObj(url))
+                                    },
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
+                        }
+                        composable<WebViewObj> {
+                            val args = it.toRoute<WebViewObj>()
+                            WebViewScreen(
+                                args.webUrl,
+                                onCodeEditorNavigation = {
+                                    navController.navigate(CodeBlocks)
+                                }
                             )
                         }
-                    }
-                    composable<WebViewObj> {
-                        val args = it.toRoute<WebViewObj>()
-                        WebViewScreen(
-                            args.webUrl,
-                            onCodeEditorNavigation = {
-                                navController.navigate(CodeBlocks)
-                            }
-                        )
-                    }
-                    composable<CodeBlocks> {
-                        EditorScaffold(
-                            onConfigNavigation = {
-                                navController.navigate(ConfigPanel)
-                            }
-                        )
-                    }
-                    composable<ConfigPanel> {
-                        ConfigPanel(onPopStackNav = { navController.popBackStack() })
+                        composable<CodeBlocks> {
+                            EditorScaffold(
+                                onConfigNavigation = {
+                                    navController.navigate(ConfigPanel)
+                                }
+                            )
+                        }
+                        composable<ConfigPanel> {
+                            ConfigPanel(onPopStackNav = { navController.popBackStack() })
+                        }
                     }
                 }
             }

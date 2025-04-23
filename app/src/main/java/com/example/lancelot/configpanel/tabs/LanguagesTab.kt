@@ -17,13 +17,14 @@ import com.example.lancelot.*
 @Composable
 fun LanguagesTab(
     languages: List<Languages>,
-    onAddLanguage: (String, String?) -> Unit,
+    onAddLanguage: (String, String?, String) -> Unit,
     onDeleteLanguage: (Long) -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Languages?>(null) }
     var newLanguageName by remember { mutableStateOf("") }
     var newLanguageDescription by remember { mutableStateOf("") }
+    var newLanguageExtensions by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Add Language Button
@@ -62,6 +63,13 @@ fun LanguagesTab(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            if (language.fileExtensions?.isNotBlank() == true) {
+                                Text(
+                                    text = "Extensions: ${language.fileExtensions}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         IconButton(onClick = { showDeleteDialog = language }) {
                             Icon(
@@ -97,17 +105,30 @@ fun LanguagesTab(
                         label = { Text("Description (Optional)") },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = newLanguageExtensions,
+                        onValueChange = { newLanguageExtensions = it },
+                        label = { Text("File Extensions (e.g., .java,.kt)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("Separate extensions with commas") }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         if (newLanguageName.isNotBlank()) {
-                            onAddLanguage(newLanguageName, 
-                                newLanguageDescription.takeIf { it.isNotBlank() })
+                            onAddLanguage(
+                                newLanguageName, 
+                                newLanguageDescription.takeIf { it.isNotBlank() },
+                                newLanguageExtensions
+                            )
                             showAddDialog = false
                             newLanguageName = ""
                             newLanguageDescription = ""
+                            newLanguageExtensions = ""
                         }
                     }
                 ) {

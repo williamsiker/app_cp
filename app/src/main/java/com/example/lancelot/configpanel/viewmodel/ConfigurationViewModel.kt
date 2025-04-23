@@ -65,9 +65,13 @@ class ConfigurationViewModel(private val database: AppDatabase) : ViewModel() {
         _state.value = _state.value.copy(selectedStyle = style)
     }
 
-    fun addLanguage(name: String, description: String?) {
+    fun addLanguage(name: String, description: String?, fileExtensions: String) {
         viewModelScope.launch {
-            val language = Languages(name = name, description = description)
+            val language = Languages(
+                name = name, 
+                description = description,
+                fileExtensions = fileExtensions
+            )
             database.languageDAO().insertLanguages(language)
             loadLanguages()
         }

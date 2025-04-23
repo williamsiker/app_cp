@@ -12,7 +12,7 @@ object DatabaseProvider {
                 context.applicationContext,
                 AppDatabase::class.java,
                 "lancelot-db"
-            ).fallbackToDestructiveMigration(true).build().also { instance = it }
+            ).addMigrations(MIGRATION_5_6).build().also { instance = it }
         }
     }
 }
