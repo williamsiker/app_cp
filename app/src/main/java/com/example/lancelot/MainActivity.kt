@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -42,13 +44,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.lancelot.configpanel.ConfigPanel
 import com.example.lancelot.ui.theme.LancelotTheme
-import kotlinx.serialization.Serializable
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.webkit.WebViewCompat
+import kotlinx.serialization.Serializable
 import com.example.lancelot.viewmodel.BrowserViewModel
 
 data class Platform(
@@ -201,22 +199,21 @@ fun WebViewScreen(
             TopAppBar(
                 title = { Text("Browser") },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (webView?.canGoBack() == true) {
-                                webView?.goBack()
-                            }
-                        },
-                        enabled = canGoBack
-                    ) {
-                        Icon(Icons.Default.ArrowBack, "Atrás")
+                    IconButton(onClick = { webView?.goBack() }) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            "Atrás",
+                            tint = if (canGoBack) Color.Unspecified else Color.Gray
+                        )
                     }
                 },
                 actions = {
                     IconButton(
                         onClick = {
-                            if (webView?.canGoForward() == true) {
+                            if (webView?.canGoForward() == true) { // Double check to avoid crash
                                 webView?.goForward()
+                            } else {
+                                // Handle cases where forward navigation is not possible (optional)
                             }
                         },
                         enabled = canGoForward
@@ -233,13 +230,9 @@ fun WebViewScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            AnimatedVisibility(
-                visible = webViewModel.showFab,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
+        }, floatingActionButton = {
+            if (webViewModel.showFab) {
+
                 FloatingActionButton(onClick = onCodeEditorNavigation) {
                     Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
                 }
@@ -249,16 +242,30 @@ fun WebViewScreen(
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            canGoBack = view?.canGoBack() ?: false
-                            canGoForward = view?.canGoForward() ?: false
+                            updateNavigationState(view)
                             url?.let { webViewModel.updateLastUrl(it) }
                         }
                     }
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
+
+                    // Enable back/forward history for the initial state
+                    updateNavigationState(this)
+
+                    // Listen for changes in navigation history
+                    setOnKeyListener(android.view.View.OnKeyListener { _, keyCode, event ->
+                        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP && canGoBack) {
+                            goBack()
+                            return@OnKeyListener true
+                        }
+                        false
+                    })
+
                     loadUrl(url)
                 }.also { webView = it }
             },
@@ -266,5 +273,11 @@ fun WebViewScreen(
                 .fillMaxSize()
                 .padding(padding)
         )
+    }
+
+    fun updateNavigationState(view: WebView?) {
+        canGoBack = view?.canGoBack() ?: false
+        canGoForward = view?.canGoForward() ?: false
+        println("canGoBack: $canGoBack, canGoForward: $canGoForward")
     }
 }
