@@ -214,21 +214,14 @@ fun EditorScaffold(
         
         Column(modifier = Modifier.padding(innerPadding)) {
             if (openFiles.isNotEmpty()) {
-                val tabRowState = remember { TabRowState(selectedTabIndex) }
-                
                 ScrollableTabRow(
-                    selectedTabIndex = tabRowState.selectedIndex,
+                    selectedTabIndex = selectedTabIndex,
                     edgePadding = 0.dp
                 ) {
                     openFiles.forEachIndexed { index, file ->
                         Tab(
-                            selected = index == tabRowState.selectedIndex,
-                            onClick = { 
-                                if (index < openFiles.size) {
-                                    viewModel.selectFile(index)
-                                    tabRowState.selectedIndex = index
-                                }
-                            },
+                            selected = index == selectedTabIndex,
+                            onClick = { viewModel.selectFile(index) },
                             text = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -239,9 +232,17 @@ fun EditorScaffold(
                                         maxLines = 1
                                     )
                                     IconButton(
-                                        onClick = { 
-                                            if (index < openFiles.size) {
+                                        onClick = {
+                                            // Validar que no sea el último archivo
+                                            if (openFiles.size > 1) {
                                                 viewModel.closeFile(file)
+                                            } else {
+                                                // Mostrar mensaje o resetear contenido
+                                                viewModel.setCurrentFile(CodeFile(
+                                                    name = "untitled",
+                                                    content = TextState(""),
+                                                    isUnsaved = true
+                                                ))
                                             }
                                         },
                                         modifier = Modifier.size(20.dp)
@@ -257,9 +258,9 @@ fun EditorScaffold(
                         )
                     }
                 }
-                
-                if (tabRowState.selectedIndex < openFiles.size) {
-                    val file = openFiles[tabRowState.selectedIndex]
+
+                // Render seguro del editor
+                openFiles.getOrNull(selectedTabIndex)?.let { file ->
                     EditorTextField(
                         textState = file.content,
                         scrollState = rememberScrollState(),
@@ -272,13 +273,13 @@ fun EditorScaffold(
                         },
                         modifier = Modifier.weight(1f)
                     )
+                } ?: run {
+                    // Manejar caso cuando no hay archivo seleccionado
+                    Text("No hay archivo seleccionado", modifier = Modifier.padding(16.dp))
                 }
             } else {
-                Text(
-                    "No hay archivo abierto",
-                    modifier = Modifier
-                        .padding(16.dp)
-                )
+                // Estado inicial cuando no hay archivos
+                Text("No hay archivo abierto", modifier = Modifier.padding(16.dp))
             }
         }
     }
@@ -364,9 +365,4 @@ fun NavigateSnippetActions(
             contentDescription = "Avanzar"
         )
     }
-}
-
-@Stable
-class TabRowState(initialIndex: Int) {
-    var selectedIndex by mutableStateOf(initialIndex)
 }

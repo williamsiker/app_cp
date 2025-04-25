@@ -1,5 +1,6 @@
 package com.example.lancelot.rust
 
+import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,7 +37,13 @@ int main() {
     return 0;
 }
             """.trimIndent()
-    val tokens = RustBridge.tokenizeCode(code, "cpp")
+    val tokens = try {
+        RustBridge.tokenizeCode(code, "cpp")
+    } catch (e: Exception) {
+        emptyArray<Token>().also { 
+            Log.e("RustBridge", "Error tokenizing code", e)
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(title = {

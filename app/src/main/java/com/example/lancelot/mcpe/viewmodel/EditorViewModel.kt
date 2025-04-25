@@ -24,7 +24,7 @@ data class CodeFile(
 )
 
 data class EditorState(
-    val openFiles: MutableList<CodeFile> = mutableListOf(),
+    val openFiles: List<CodeFile> = emptyList(),
     val currentFile: CodeFile? = null,
     val selectedIndex: Int = 0
 )
@@ -34,41 +34,31 @@ class EditorViewModel : ViewModel() {
     val state: StateFlow<EditorState> = _state.asStateFlow()
 
     private fun updateState(block: (EditorState) -> EditorState) {
-        viewModelScope.launch {
-            _state.update(block)
-        }
+        _state.update(block)
     }
 
     fun setCurrentFile(file: CodeFile) {
         updateState { currentState ->
             val updatedFiles = currentState.openFiles.toMutableList()
-            val existingFileIndex = updatedFiles.indexOfFirst { it.name == file.name }
-            
-            when {
-                updatedFiles.isEmpty() -> {
-                    updatedFiles.add(file)
-                    currentState.copy(
-                        currentFile = file,
-                        openFiles = updatedFiles,
-                        selectedIndex = 0
-                    )
-                }
-                existingFileIndex >= 0 -> {
-                    updatedFiles[existingFileIndex] = file
-                    currentState.copy(
-                        currentFile = file,
-                        openFiles = updatedFiles,
-                        selectedIndex = existingFileIndex
-                    )
-                }
-                else -> {
-                    updatedFiles.add(file)
-                    currentState.copy(
-                        currentFile = file,
-                        openFiles = updatedFiles,
-                        selectedIndex = updatedFiles.size - 1
-                    )
-                }
+            // Verificar si el archivo ya existe
+            val existingIndex = updatedFiles.indexOfFirst { 
+                it.name == file.name && it.uri == file.uri 
+            }
+            if (existingIndex >= 0) {
+                // Actualizar archivo existente
+                updatedFiles[existingIndex] = file
+                currentState.copy(
+                    openFiles = updatedFiles,
+                    currentFile = file,
+                    selectedIndex = existingIndex
+                )
+            } else {
+                updatedFiles.add(file)
+                currentState.copy(
+                    openFiles = updatedFiles,
+                    currentFile = file,
+                    selectedIndex = updatedFiles.size - 1
+                )
             }
         }
     }
@@ -93,45 +83,38 @@ class EditorViewModel : ViewModel() {
     fun closeFile(file: CodeFile) {
         updateState { currentState ->
             val updatedFiles = currentState.openFiles.toMutableList()
-            val indexToRemove = updatedFiles.indexOfFirst { it.name == file.name }
-            
-            if (indexToRemove >= 0) {
-                updatedFiles.removeAt(indexToRemove)
-                
+            val removedIndex = updatedFiles.indexOfFirst { it.name == file.name }
+
+            if (removedIndex >= 0) {
+                updatedFiles.removeAt(removedIndex)
+
                 val newFiles = if (updatedFiles.isEmpty()) {
-                    mutableListOf(CodeFile(name = "untitled", isUnsaved = true))
+                    listOf(CodeFile(name = "untitled", isUnsaved = true))
                 } else updatedFiles
-                
-                val newSelectedIndex = when {
-                    currentState.selectedIndex >= newFiles.size -> newFiles.size - 1
-                    currentState.selectedIndex > indexToRemove -> currentState.selectedIndex - 1
-                    else -> currentState.selectedIndex
+
+                // Calcular nuevo índice seguro
+                val newIndex = when {
+                    currentState.selectedIndex < removedIndex -> currentState.selectedIndex
+                    currentState.selectedIndex == removedIndex -> (removedIndex - 1).coerceAtLeast(0)
+                    else -> (currentState.selectedIndex - 1).coerceAtLeast(0)
                 }.coerceIn(0, newFiles.size - 1)
-                
                 currentState.copy(
-                    currentFile = if (currentState.currentFile?.name == file.name) 
-                        newFiles.getOrNull(newSelectedIndex)
-                    else 
-                        currentState.currentFile,
                     openFiles = newFiles,
-                    selectedIndex = newSelectedIndex
+                    currentFile = newFiles.getOrNull(newIndex),
+                    selectedIndex = newIndex
                 )
             } else {
                 currentState
             }
         }
     }
-
     fun selectFile(index: Int) {
         updateState { currentState ->
-            if (index >= 0 && index < currentState.openFiles.size) {
-                currentState.copy(
-                    currentFile = currentState.openFiles[index],
-                    selectedIndex = index
-                )
-            } else {
-                currentState
-            }
+            val safeIndex = index.coerceIn(0, currentState.openFiles.size - 1)
+            currentState.copy(
+                currentFile = currentState.openFiles.getOrNull(safeIndex),
+                selectedIndex = safeIndex
+            )
         }
     }
 }
