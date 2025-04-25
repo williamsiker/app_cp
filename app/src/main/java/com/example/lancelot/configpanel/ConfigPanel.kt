@@ -7,8 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.lancelot.configpanel.tabs.KeywordsTab
-import com.example.lancelot.configpanel.tabs.LanguagesTab
 import com.example.lancelot.configpanel.tabs.StylesTab
 import com.example.lancelot.configpanel.viewmodel.ConfigurationViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -47,22 +45,6 @@ fun ConfigPanel(
             }
 
             when (selectedTab) {
-                0 -> LanguagesTab(
-                    languages = state.languages,
-                    onAddLanguage = viewModel::addLanguage,
-                    onDeleteLanguage = viewModel::deleteLanguage
-                )
-                1 -> KeywordsTab(
-                    state = state,
-                    onLanguageSelect = viewModel::setSelectedLanguage,
-                    onAddKeyword = viewModel::addKeyword,
-                    onDeleteKeyword = viewModel::deleteKeyword,
-                    onAddGroup = viewModel::addGroup,
-                    onDeleteGroup = viewModel::deleteGroup,
-                    onUpdateGroupStyle = viewModel::updateGroupStyle,
-                    onGroupSelect = viewModel::setSelectedGroup,
-                    onStyleSelect = viewModel::setSelectedStyle
-                )
                 2 -> StylesTab(
                     styles = state.styles,
                     onAddStyle = viewModel::addStyle,

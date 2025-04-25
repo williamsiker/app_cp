@@ -33,10 +33,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lancelot.mcpe.viewmodel.EditorViewModel
 import com.example.lancelot.mcpe.viewmodel.CodeFile
 import com.example.lancelot.mcpe.model.TextState
+import com.example.lancelot.rust.RustBridge
 import com.example.lancelot.utils.FileUtils
 import kotlinx.coroutines.launch
 import java.io.File
-
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,7 +133,7 @@ fun EditorScaffold(
         drawerContent = {
             ModalDrawerSheet {
                 Text(
-                    text = "Archivos Abiertos",
+                    text = RustBridge.helloRust(),
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.titleMedium
                 )
@@ -161,7 +161,7 @@ fun EditorScaffold(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(currentFile?.name ?: "Sin archivo") },
+                    title = { Text(currentFile?.name ?: "untitled") },
                     navigationIcon = {
                         IconButton(onClick = {
                             scope.launch { drawerState.open() }
@@ -170,15 +170,15 @@ fun EditorScaffold(
                         }
                     },
                     actions = {
-                        if(!isOnSnippet.value) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
                             IconButton(onClick = { onConfigNavigation() }) {
                                 Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
                             }
-                        } else {
-                            NavigateSnippetActions(
-                                onNavigateBack = {},
-                                onNavigateForward = {}
-                            )
+                            HorizontalFabMenu()
                         }
                     }
                 )

@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/***
+ *  @property name e.g "main.rs"
+ *  @property uri is the path to the file on the device
+ *  @property mimeType is the mime type for avoid automatic.rename file-extension
+*/
 data class CodeFile(
     val name: String,
     val content: TextState = TextState(""),

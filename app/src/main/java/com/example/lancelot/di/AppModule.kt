@@ -11,8 +11,7 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { DatabaseProvider.getDatabase(get()) }
-    single { ConfigImporter(get(), get()) }  // Changed this line to use the context from Koin
+    single { ConfigImporter(get(), get()) }
     viewModel { ConfigurationViewModel(get()) }
-    viewModel { BrowserViewModel() }
-    viewModel { EditorViewModel() }
+    // BrowserViewModel y EditorViewModel se mantienen si no dependen de Keywords, KeywordGroup o Language
 }

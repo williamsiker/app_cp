@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -52,11 +53,13 @@ import com.example.lancelot.ui.theme.LancelotTheme
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.webkit.WebViewCompat
 import com.example.lancelot.mcpe.components.EditorScaffold
+import com.example.lancelot.rust.DebugPanelScreen
 import kotlinx.serialization.Serializable
 import com.example.lancelot.viewmodel.BrowserViewModel
 import org.koin.compose.KoinContext
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         installSplashScreen()
@@ -88,7 +91,11 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = Home) {
                         composable<Home> {
                             Scaffold(
-                                topBar = { TopBar() }
+                                topBar = {
+                                    TopBar(onDebugNavigate = {
+                                        navController.navigate(DebugPanel)
+                                    })
+                                }
                             ) { innerPadding ->
                                 PlatformSelector(
                                     platforms = platforms,
@@ -118,6 +125,9 @@ class MainActivity : ComponentActivity() {
                         composable<ConfigPanel> {
                             ConfigPanel(onPopStackNav = { navController.popBackStack() })
                         }
+                        composable<DebugPanel> {
+                            DebugPanelScreen()
+                        }
                     }
                 }
             }
@@ -137,9 +147,14 @@ object CodeBlocks
 @Serializable
 object ConfigPanel
 
+@Serializable
+object DebugPanel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TopBar() {
+fun TopBar(
+    onDebugNavigate: () -> Unit = {}
+) {
     TopAppBar(
         title = { Text("Lancelot") },
         actions = {
@@ -147,6 +162,12 @@ fun TopBar() {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Agregar"
+                )
+            }
+            IconButton(onClick = { onDebugNavigate() }) {
+                Icon(
+                    imageVector = Icons.Outlined.BugReport,
+                    contentDescription = "Depurar"
                 )
             }
         }

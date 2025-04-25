@@ -1,3 +1,4 @@
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,12 +7,32 @@ plugins {
     kotlin("plugin.serialization") version "1.9.23"
     id("com.google.devtools.ksp")
     id("androidx.room")
+    //id("org.mozilla.rust-android-gradle.rust-android")
+}
+
+/*apply(plugin = "org.mozilla.rust-android-gradle.rust-android")
+cargo {
+    module  = "src/main/rust"       // directory of Cargo.toml
+    libname = "rust"          // Cargo.toml's [package] name.
+    targets = listOf("arm", "arm64", "x86", "x86_64")  // abis
+}*/
+
+val buildRustLib by tasks.registering(Exec::class) {
+    workingDir = file("D:\\Code\\Rust\\rust-android\\rust-lib") // ajusta si tu path cambia
+    commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "build.ps1")
+    // Solo se ejecuta si el archivo existe
+    onlyIf { file("D:\\Code\\Rust\\rust-android\\rust-lib\\build.ps1").exists() }
+}
+
+// Haz que esta tarea corra antes del preBuild
+tasks.named("preBuild") {
+    dependsOn(buildRustLib)
 }
 
 android {
     namespace = "com.example.lancelot"
     compileSdk = 35
-
+    //ndkVersion = "29.0.13113456 rc1" slows the build :'=/
     defaultConfig {
         applicationId = "com.example.lancelot"
         minSdk = 25
@@ -89,4 +110,7 @@ dependencies {
     implementation(libs.koin.core)
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
+
+    //implementation(libs.jna)
+    implementation(libs.kotlinx.coroutines.core)
 }

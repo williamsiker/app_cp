@@ -19,4 +19,16 @@ object FileUtils {
             else -> "text/plain"
         }
     }
+    fun getLanguage(fileName: String): String {
+        return when {
+            fileName.endsWith(".cpp", true) -> "cpp"
+            fileName.endsWith(".c", true) -> "c"
+            fileName.endsWith(".java", true) -> "java"
+            fileName.endsWith(".py", true) -> "python"
+            fileName.endsWith(".kt", true) -> "kotlin"
+            fileName.endsWith(".js", true) -> "javascript"
+            fileName.endsWith(".ts", true) -> "typescript"
+            else -> "text/plain?"
+        }
+    }
 }
