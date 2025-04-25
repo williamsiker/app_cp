@@ -46,7 +46,6 @@ fun EditorScaffold(
     onConfigNavigation: () -> Unit
 ) {
     val context = LocalContext.current
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var showBottomSheet by remember { mutableStateOf(false) }
     var showNewFileDialog by remember { mutableStateOf(false) }
@@ -128,142 +127,136 @@ fun EditorScaffold(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Text(
-                    text = RustBridge.helloRust(),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                LazyColumn {
-                    items(openFiles) { file ->
-                        ListItem(
-                            headlineContent = { 
-                                Text(file.name + if (file.isUnsaved) "*" else "") 
-                            },
-                            modifier = Modifier.clickable {
-                                viewModel.setCurrentFile(file)
-                                scope.launch { drawerState.close() }
-                            },
-                            trailingContent = {
-                                IconButton(onClick = { viewModel.closeFile(file) }) {
-                                    Icon(Icons.Default.Close, "Cerrar archivo")
-                                }
-                            }
-                        )
+    // --- INICIO CAMBIO: TabRow para archivos abiertos ---
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(currentFile?.name ?: "untitled") },
+                actions = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        IconButton(onClick = { onConfigNavigation() }) {
+                            Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
+                        }
+                        HorizontalFabMenu()
                     }
+                }
+            )
+        },
+        floatingActionButton = {
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                AnimatedVisibility(
+                    visible = fabExpanded,
+                    enter = scaleIn() + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SmallFloatingActionButton(
+                            onClick = { openFileLauncher.launch(arrayOf("text/*")) }
+                        ) {
+                            Icon(Icons.Default.FolderOpen, "Abrir archivo")
+                        }
+                        SmallFloatingActionButton(
+                            onClick = { showNewFileDialog = true }
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.NoteAdd, "Nuevo archivo")
+                        }
+                        if (currentFile != null) {
+                            SmallFloatingActionButton(
+                                onClick = {
+                                    currentFile.uri?.let { uri ->
+                                        context.contentResolver.openOutputStream(uri)?.use { stream ->
+                                            stream.write(currentFile.content.text.toByteArray())
+                                            viewModel.updateFile(currentFile.copy(isUnsaved = false))
+                                        }
+                                    } ?: run {
+                                        saveFileLauncher.launch(currentFile.name)
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Save, "Guardar archivo")
+                            }
+                            SmallFloatingActionButton(
+                                onClick = { showBottomSheet = true }
+                            ) {
+                                Icon(Icons.Default.Code, "Insertar bloque de código")
+                            }
+                        }
+                    }
+                }
+                FloatingActionButton(
+                    onClick = { fabExpanded = !fabExpanded }
+                ) {
+                    val rotation by animateFloatAsState(
+                        targetValue = if (fabExpanded) 45f else 0f,
+                        label = "FAB rotation"
+                    )
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Expandir",
+                        modifier = Modifier.rotate(rotation)
+                    )
                 }
             }
         }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(currentFile?.name ?: "untitled") },
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            scope.launch { drawerState.open() }
-                        }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menú")
-                        }
-                    },
-                    actions = {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            IconButton(onClick = { onConfigNavigation() }) {
-                                Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
-                            }
-                            HorizontalFabMenu()
-                        }
-                    }
-                )
-            },
-            floatingActionButton = {
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    AnimatedVisibility(
-                        visible = fabExpanded,
-                        enter = scaleIn() + fadeIn(),
-                        exit = scaleOut() + fadeOut()
+    ) { innerPadding -> 
+        Box(modifier = Modifier.padding(innerPadding)) {
+            if (openFiles.isNotEmpty()) {
+                val selectedTabIndex = openFiles.indexOfFirst { it.name == currentFile?.name }.takeIf { it >= 0 } ?: 0
+                Column {
+                    ScrollableTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        edgePadding = 0.dp
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            SmallFloatingActionButton(
-                                onClick = { openFileLauncher.launch(arrayOf("text/*")) }
-                            ) {
-                                Icon(Icons.Default.FolderOpen, "Abrir archivo")
-                            }
-                            
-                            SmallFloatingActionButton(
-                                onClick = { showNewFileDialog = true }
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.NoteAdd, "Nuevo archivo")
-                            }
-                            
-                            if (currentFile != null) {
-                                SmallFloatingActionButton(
-                                    onClick = {
-                                        currentFile.uri?.let { uri -> 
-                                            // Guardar en el archivo existente
-                                            context.contentResolver.openOutputStream(uri)?.use { stream ->
-                                                stream.write(currentFile.content.text.toByteArray())
-                                                viewModel.updateFile(currentFile.copy(isUnsaved = false))
-                                            }
-                                        } ?: run {
-                                            saveFileLauncher.launch(currentFile.name)
+                        openFiles.forEachIndexed { index, file ->
+                            Tab(
+                                selected = index == selectedTabIndex,
+                                onClick = { viewModel.setCurrentFile(file) },
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(file.name + if (file.isUnsaved) "*" else "")
+                                        IconButton(
+                                            onClick = { viewModel.closeFile(file) },
+                                            modifier = Modifier.size(20.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Cerrar archivo", modifier = Modifier.size(16.dp))
                                         }
                                     }
-                                ) {
-                                    Icon(Icons.Default.Save, "Guardar archivo")
                                 }
-
-                                SmallFloatingActionButton(
-                                    onClick = { showBottomSheet = true }
-                                ) {
-                                    Icon(Icons.Default.Code, "Insertar bloque de código")
-                                }
-                            }
+                            )
                         }
                     }
-                    
-                    FloatingActionButton(
-                        onClick = { fabExpanded = !fabExpanded }
-                    ) {
-                        val rotation by animateFloatAsState(
-                            targetValue = if (fabExpanded) 45f else 0f,
-                            label = "FAB rotation"
+                    if (openFiles.getOrNull(selectedTabIndex) != null) {
+                        val file = openFiles[selectedTabIndex]
+                        EditorTextField(
+                            textState = file.content,
+                            scrollState = rememberScrollState(),
+                            onScroll = { delta -> scope.launch { scrollState.scrollBy(delta) } },
+                            onTextChanged = { newContent ->
+                                viewModel.updateFile(file.copy(
+                                    content = newContent,
+                                    isUnsaved = true
+                                ))
+                            },
+                            modifier = Modifier.weight(1f)
                         )
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Expandir",
-                            modifier = Modifier.rotate(rotation)
+                    } else {
+                        Text(
+                            "No hay archivo abierto",
+                            modifier = Modifier
+                                .padding(16.dp)
                         )
                     }
                 }
-            }
-        ) { innerPadding -> 
-            Box(modifier = Modifier.padding(innerPadding)) {
-                currentFile?.let { file ->
-                    EditorTextField(
-                        textState = file.content,
-                        scrollState = rememberScrollState(),
-                        onScroll = { delta -> scope.launch { scrollState.scrollBy(delta) } },
-                        onTextChanged = { newContent ->
-                            viewModel.updateFile(file.copy(
-                                content = newContent,
-                                isUnsaved = true
-                            ))
-                        }
-                    )
-                } ?: Text(
+            } else {
+                Text(
                     "No hay archivo abierto",
                     modifier = Modifier
                         .padding(16.dp)
@@ -272,6 +265,7 @@ fun EditorScaffold(
             }
         }
     }
+    // --- FIN CAMBIO: TabRow para archivos abiertos ---
 
     if (showNewFileDialog) {
         AlertDialog(
