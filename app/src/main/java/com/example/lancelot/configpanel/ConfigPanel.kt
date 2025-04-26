@@ -5,7 +5,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.lancelot.configpanel.tabs.StylesTab
 import com.example.lancelot.configpanel.viewmodel.ConfigurationViewModel
@@ -17,28 +21,45 @@ fun ConfigPanel(
     onPopStackNav: () -> Unit,
     viewModel: ConfigurationViewModel = koinViewModel()
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Languages", "Keywords", "Styles")
+    // Memoizar la lista de tabs para evitar recreaciones
+    val tabs = remember { listOf("Languages", "Keywords", "Styles") }
+    
+    // Usar rememberSaveable para mantener el estado a través de recreaciones
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    
+    // Optimizar la recolección del estado
     val state by viewModel.state.collectAsState()
-    val isLoading by remember { derivedStateOf { state.styles.isEmpty() } }
+    
+    // Derivar estados computados de manera eficiente
+    val styles by remember(state.styles) { derivedStateOf { state.styles } }
+    val isLoading by remember { derivedStateOf { styles.isEmpty() } }
 
     if (isLoading) {
-        CircularProgressIndicator()
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
     } else {
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text("Configuration") },
                     navigationIcon = {
-                        IconButton(onClick = { onPopStackNav() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        IconButton(
+                            onClick = onPopStackNav,
+                            modifier = Modifier.semantics { contentDescription = "Navigate back" }
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                         }
                     }
                 )
             }
         ) { innerPadding -> 
-            Column(modifier = Modifier.padding(innerPadding)) {
-                TabRow(selectedTabIndex = selectedTab) {
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+            ) {
+                val tabRowContent = @Composable {
                     tabs.forEachIndexed { index, title ->
                         Tab(
                             text = { Text(title) },
@@ -48,12 +69,16 @@ fun ConfigPanel(
                     }
                 }
 
+                TabRow(selectedTabIndex = selectedTab, tabs = tabRowContent)
+
+                // Usar lazy loading para el contenido de las pestañas
                 when (selectedTab) {
                     2 -> StylesTab(
-                        styles = state.styles,
-                        onAddStyle = viewModel::addStyle,
-                        onDeleteStyle = viewModel::deleteStyle
+                        styles = styles,
+                        onAddStyle = remember(viewModel) { viewModel::addStyle },
+                        onDeleteStyle = remember(viewModel) { viewModel::deleteStyle }
                     )
+                    // Otros casos se cargarán solo cuando sean necesarios
                 }
             }
         }

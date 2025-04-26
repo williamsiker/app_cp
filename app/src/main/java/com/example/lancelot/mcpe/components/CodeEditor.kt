@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lancelot.mcpe.viewmodel.EditorViewModel
@@ -36,8 +38,12 @@ import com.example.lancelot.mcpe.viewmodel.CodeFile
 import com.example.lancelot.mcpe.model.TextState
 import com.example.lancelot.rust.RustBridge
 import com.example.lancelot.utils.FileUtils
+import kotlinx.coroutines.Dispatchers // Import Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext // Import withContext
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,45 +91,23 @@ fun EditorScaffold(
         }
     }
 
-    fun getFileName(uri: Uri): String {
-        uri.lastPathSegment?.let { fullPath ->
-            return File(fullPath).name
-        }
-        return "untitled"
-    }
-    
+    // --- Move I/O Launchers Logic to ViewModel Calls ---
     val openFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            context.contentResolver.openInputStream(it)?.use { stream ->
-                val content = stream.bufferedReader().use { it.readText() }
-                val fileName = getFileName(uri)
-                viewModel.setCurrentFile(
-                    CodeFile(
-                        name = fileName,
-                        content = TextState(content),
-                        uri = uri
-                    )
-                )
-            }
+            // Delegate loading to ViewModel on IO thread
+            viewModel.loadAndOpenFile(it, context.contentResolver)
         }
     }
 
     val saveFileLauncher = rememberLauncherForActivityResult(
-        contract = CreateDocument()
+        contract = ActivityResultContracts.CreateDocument(currentFile?.mimeType ?: "text/plain") // Use correct mime type
     ) { uri: Uri? ->
-        uri?.let {
-            context.contentResolver.openOutputStream(it)?.use { stream ->
-                stream.write(currentFile?.content?.text?.toByteArray() ?: ByteArray(0))
-                currentFile?.let { file ->
-                    viewModel.updateFile(file.copy(
-                        uri = uri,
-                        name = getFileName(uri),
-                        isUnsaved = false,
-                        mimeType = context.contentResolver.getType(uri) ?: FileUtils.getMimeType(getFileName(uri))
-                    ))
-                }
+        uri?.let { targetUri ->
+            currentFile?.let { fileToSave ->
+                // Delegate saving to ViewModel on IO thread
+                viewModel.saveFileToUri(fileToSave, targetUri, context.contentResolver)
             }
         }
     }
@@ -132,7 +116,14 @@ fun EditorScaffold(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(currentFile?.name ?: "untitled") },
+                title = {
+                    // Display name of the *actually* selected file
+                    Text(
+                        "Editor",  // Changed to a generic title since tabs will be moved
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                 },
                 actions = {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -160,7 +151,10 @@ fun EditorScaffold(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         SmallFloatingActionButton(
-                            onClick = { openFileLauncher.launch(arrayOf("text/*")) }
+                            onClick = {
+                                // Use the launcher which now calls the ViewModel
+                                openFileLauncher.launch(arrayOf("*/*")) // Allow any file type initially
+                            }
                         ) {
                             Icon(Icons.Default.FolderOpen, "Abrir archivo")
                         }
@@ -169,16 +163,14 @@ fun EditorScaffold(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.NoteAdd, "Nuevo archivo")
                         }
+                        // Check if the *selected* file can be saved
                         if (currentFile != null) {
                             SmallFloatingActionButton(
                                 onClick = {
-                                    currentFile.uri?.let { uri ->
-                                        context.contentResolver.openOutputStream(uri)?.use { stream ->
-                                            stream.write(currentFile.content.text.toByteArray())
-                                            viewModel.updateFile(currentFile.copy(isUnsaved = false))
-                                        }
-                                    } ?: run {
-                                        saveFileLauncher.launch(currentFile.name)
+                                    // Delegate saving to ViewModel
+                                    viewModel.saveCurrentFile(context.contentResolver) { suggestedName ->
+                                        // This lambda is called if "Save As" is needed
+                                        saveFileLauncher.launch(suggestedName)
                                     }
                                 }
                             ) {
@@ -208,78 +200,99 @@ fun EditorScaffold(
             }
         }
     ) { innerPadding ->
-        val selectedTabIndex = remember(openFiles.size) {
-            editorState.selectedIndex.coerceIn(0, (openFiles.size - 1).coerceAtLeast(0))
-        }
+        // Estado local para el índice seleccionado para evitar condiciones de carrera
+        val openFiles = editorState.openFiles
+        val currentSelectedIndex = editorState.selectedIndex
         
-        Column(modifier = Modifier.padding(innerPadding)) {
+        // Validar el índice antes de la composición
+        val safeIndex = remember(openFiles.size, currentSelectedIndex) {
+            currentSelectedIndex.coerceIn(0, maxOf(0, openFiles.size - 1))
+        }
+
+        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
             if (openFiles.isNotEmpty()) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    edgePadding = 0.dp
-                ) {
-                    openFiles.forEachIndexed { index, file ->
-                        Tab(
-                            selected = index == selectedTabIndex,
-                            onClick = { viewModel.selectFile(index) },
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = file.name + if (file.isUnsaved) "*" else "",
-                                        maxLines = 1
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            // Validar que no sea el último archivo
-                                            if (openFiles.size > 1) {
-                                                viewModel.closeFile(file)
-                                            } else {
-                                                // Mostrar mensaje o resetear contenido
-                                                viewModel.setCurrentFile(CodeFile(
-                                                    name = "untitled",
-                                                    content = TextState(""),
-                                                    isUnsaved = true
-                                                ))
-                                            }
-                                        },
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Cerrar archivo",
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ScrollableTabRow(
+                        selectedTabIndex = safeIndex,
+                        modifier = Modifier.fillMaxWidth(),
+                        edgePadding = 8.dp,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        indicator = { tabPositions ->
+                            if (tabPositions.isNotEmpty() && safeIndex < tabPositions.size) {
+                                TabRowDefaults.Indicator(
+                                    modifier = Modifier.tabIndicatorOffset(tabPositions[safeIndex])
+                                )
                             }
+                        }
+                    ) {
+                        // Asegurarnos de que la lista no cambie durante la composición
+                        val stableFiles = remember(openFiles) { openFiles.toList() }
+                        stableFiles.forEachIndexed { index, file ->
+                            key(file.uri ?: file.name) {
+                                Tab(
+                                    selected = index == safeIndex,
+                                    onClick = { 
+                                        if (index != safeIndex) {
+                                            scope.launch {
+                                                viewModel.selectFile(index)
+                                            }
+                                        }
+                                    },
+                                    text = {
+                                        Text(
+                                            text = file.name + if (file.isUnsaved) "*" else "",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
+                                    modifier = Modifier.padding(horizontal = 4.dp),
+                                    icon = {
+                                        if (stableFiles.size > 1 || file.uri != null) {
+                                            IconButton(
+                                                onClick = { 
+                                                    scope.launch {
+                                                        viewModel.closeFile(index)
+                                                    }
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = "Close ${file.name}",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Editor actual
+                    editorState.currentFile?.let { file ->
+                        EditorTextField(
+                            textState = file.content,
+                            scrollState = scrollState,
+                            onScroll = { delta -> scope.launch { scrollState.scrollBy(delta) } },
+                            onTextChanged = { newContent ->
+                                scope.launch {
+                                    viewModel.updateFileContent(file, newContent)
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
                         )
                     }
                 }
-
-                // Render seguro del editor
-                openFiles.getOrNull(selectedTabIndex)?.let { file ->
-                    EditorTextField(
-                        textState = file.content,
-                        scrollState = rememberScrollState(),
-                        onScroll = { delta -> scope.launch { scrollState.scrollBy(delta) } },
-                        onTextChanged = { newContent ->
-                            viewModel.updateFile(file.copy(
-                                content = newContent,
-                                isUnsaved = true
-                            ))
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                } ?: run {
-                    // Manejar caso cuando no hay archivo seleccionado
-                    Text("No hay archivo seleccionado", modifier = Modifier.padding(16.dp))
-                }
             } else {
-                // Estado inicial cuando no hay archivos
-                Text("No hay archivo abierto", modifier = Modifier.padding(16.dp))
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No files open.")
+                }
             }
         }
     }
@@ -311,18 +324,23 @@ fun EditorScaffold(
                         if (newFileName.isNotBlank()) {
                             val newFile = CodeFile(
                                 name = newFileName,
-                                isUnsaved = true,
-                                mimeType = FileUtils.getMimeType(newFileName)
+                                isUnsaved = true, // It's unsaved until first save
+                                mimeType = FileUtils.getMimeType(newFileName),
+                                content = TextState("") // Start with empty content
                             )
-                            viewModel.setCurrentFile(newFile)
+                            // Open the new file in the editor state
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    viewModel.openFile(newFile)
+                                }
+                            }
+                            // Immediately trigger "Save As" for the new file
                             saveFileLauncher.launch(newFileName)
                             showNewFileDialog = false
                             newFileName = ""
                         }
                     }
-                ) {
-                    Text("Crear")
-                }
+                ) { Text("Crear y Guardar Como...") } // Clarify button action
             },
             dismissButton = {
                 TextButton(

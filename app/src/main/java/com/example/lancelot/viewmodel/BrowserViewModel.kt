@@ -16,6 +16,11 @@ class BrowserViewModel : ViewModel() {
     var showFab by mutableStateOf(true)
         private set
 
+    var canGoBack by mutableStateOf(false)
+        private set
+    var canGoForward by mutableStateOf(false)
+        private set
+
     fun updateLastUrl(url: String) {
         viewModelScope.launch {
             _lastUrl.emit(url)
@@ -24,5 +29,10 @@ class BrowserViewModel : ViewModel() {
 
     fun toggleFab() {
         showFab = !showFab
+    }
+
+    fun updateNavigationState(canGoBack: Boolean, canGoForward: Boolean) {
+        this.canGoBack = canGoBack
+        this.canGoForward = canGoForward
     }
 }

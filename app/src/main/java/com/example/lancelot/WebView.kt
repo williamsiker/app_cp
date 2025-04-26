@@ -1,6 +1,7 @@
 package com.example.lancelot
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
@@ -32,12 +33,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lancelot.viewmodel.BrowserViewModel
-
-data class Platform(
-    val name: String,
-    val icon: ImageVector,
-    val url: String,
-)
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -46,25 +50,14 @@ fun WebViewScreen(
     url: String,
     onCodeEditorNavigation: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val webViewModel = viewModel<BrowserViewModel>()
     var webView by remember { mutableStateOf<WebView?>(null) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
-
-    fun updateNavigationState(view: WebView?) {
-        canGoBack = view?.canGoBack() ?: false
-        canGoForward = view?.canGoForward() ?: false
-        println("canGoBack: $canGoBack, canGoForward: $canGoForward")
-    }
+    var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         webViewModel.updateLastUrl(url)
-    }
-
-    BackHandler {
-        if (webView?.canGoBack() == true) {
-            webView?.goBack()
-        }
     }
 
     Scaffold(
@@ -72,24 +65,21 @@ fun WebViewScreen(
             TopAppBar(
                 title = { Text("Browser") },
                 navigationIcon = {
-                    IconButton(onClick = { webView?.goBack() }) {
+                    IconButton(
+                        onClick = { webView?.goBack() },
+                        enabled = webViewModel.canGoBack
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             "Atrás",
-                            tint = if (canGoBack) Color.Unspecified else Color.Gray
+                            tint = if (webViewModel.canGoBack) Color.Unspecified else Color.Gray
                         )
                     }
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            if (webView?.canGoForward() == true) { // Double check to avoid crash
-                                webView?.goForward()
-                            } else {
-                                // Handle cases where forward navigation is not possible (optional)
-                            }
-                        },
-                        enabled = canGoForward
+                        onClick = { webView?.goForward() },
+                        enabled = webViewModel.canGoForward
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, "Adelante")
                     }
@@ -101,48 +91,91 @@ fun WebViewScreen(
                             "Toggle Editor Button"
                         )
                     }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "More options")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, webView?.url)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share URL"))
+                                showMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Open in Browser") },
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(webView?.url))
+                                context.startActivity(intent)
+                                showMenu = false
+                            }
+                        )
+                    }
                 }
             )
-        }, floatingActionButton = {
+        },
+        floatingActionButton = {
             if (webViewModel.showFab) {
-
                 FloatingActionButton(onClick = onCodeEditorNavigation) {
                     Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
                 }
             }
         }
     ) { padding ->
-        AndroidView(
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidView(
+                factory = { context ->
+                    WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
 
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            updateNavigationState(view)
-                            url?.let { webViewModel.updateLastUrl(it) }
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isLoading = true
+                                view?.let {
+                                    webViewModel.updateNavigationState(
+                                        it.canGoBack(),
+                                        it.canGoForward()
+                                    )
+                                }
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isLoading = false
+                                view?.let {
+                                    webViewModel.updateNavigationState(
+                                        it.canGoBack(),
+                                        it.canGoForward()
+                                    )
+                                }
+                                url?.let { webViewModel.updateLastUrl(it) }
+                            }
                         }
-                    }
 
-                    updateNavigationState(this)
-                    // Listen for changes in navigation history
-                    setOnKeyListener(android.view.View.OnKeyListener { _, keyCode, event ->
-                        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_UP && canGoBack) {
-                            goBack()
-                            return@OnKeyListener true
-                        }
-                        false
-                    })
-
-                    loadUrl(url)
-                }.also { webView = it }
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        )
+                        loadUrl(url)
+                    }.also { webView = it }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            )
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                )
+            }
+        }
     }
 }
