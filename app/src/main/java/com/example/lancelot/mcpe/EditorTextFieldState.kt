@@ -56,10 +56,6 @@ class EditorTextFieldState(
         }
     }
 
-    fun getOffsetCursorValue()  {
-
-    }
-
     private fun handleAutoIndent() {
         val currentLine = getCurrentLine()
         val indentLevel = calculateIndentLevel(currentLine)

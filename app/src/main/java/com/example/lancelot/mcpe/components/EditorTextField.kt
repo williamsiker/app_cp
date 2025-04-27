@@ -1,5 +1,6 @@
 package com.example.lancelot.mcpe.components
 
+import android.util.Log
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextLayoutResult
 import com.example.lancelot.mcpe.TextState
@@ -62,6 +68,15 @@ internal fun EditorTextField(
                     textFieldState.onTextLayoutChange(layoutResult)
                 }
             )
+        }
+    }
+
+    // Important for the development !!!
+    LaunchedEffect(textFieldState.textFieldValue.selection.start) {
+        textFieldState.textState.textLayoutResult?.let{
+            val cursorOffset = textFieldState.textFieldValue.selection.start
+            val cursorRect = textFieldState.textState.textLayoutResult!!.getCursorRect(cursorOffset)
+            Log.d("CursorPosition", "Cursor X: ${cursorRect.left}, Y: ${cursorRect.top}")
         }
     }
 }

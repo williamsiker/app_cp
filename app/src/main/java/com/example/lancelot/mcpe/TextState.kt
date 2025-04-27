@@ -161,7 +161,7 @@ class TextState(
 
     private fun getPositionForOffset(offset: Int): IntOffset = getCursorRectForOffset(offset).bottomLeft.round()
 
-    private fun getCursorRectForOffset(offset: Int): Rect = textLayoutResult?.let { layoutResult ->
+    fun getCursorRectForOffset(offset: Int): Rect = textLayoutResult?.let { layoutResult ->
         if (offset >= layoutResult.layoutInput.text.length) {
             layoutResult.getCursorRect(layoutResult.layoutInput.text.length - 1)
         } else {
