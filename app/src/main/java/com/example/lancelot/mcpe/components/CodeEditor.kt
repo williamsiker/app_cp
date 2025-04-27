@@ -5,45 +5,64 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
-import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.NoteAdd
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.lancelot.mcpe.viewmodel.EditorViewModel
-import com.example.lancelot.mcpe.viewmodel.CodeFile
-import com.example.lancelot.mcpe.model.TextState
-import com.example.lancelot.rust.RustBridge
+import com.example.lancelot.mcpe.CodeFile
+import com.example.lancelot.mcpe.EditorViewModel
+import com.example.lancelot.mcpe.TextState
 import com.example.lancelot.utils.FileUtils
-import kotlinx.coroutines.Dispatchers // Import Dispatchers
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext // Import withContext
-import java.io.File
-import java.io.InputStream
-import java.io.OutputStream
+import kotlinx.coroutines.withContext
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,7 +121,7 @@ fun EditorScaffold(
     }
 
     val saveFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument(currentFile?.mimeType ?: "text/plain") // Use correct mime type
+        contract = CreateDocument(currentFile?.mimeType ?: "text/plain") // Use correct mime type
     ) { uri: Uri? ->
         uri?.let { targetUri ->
             currentFile?.let { fileToSave ->
@@ -132,76 +151,23 @@ fun EditorScaffold(
                         IconButton(onClick = { onConfigNavigation() }) {
                             Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
                         }
-                        HorizontalFabMenu()
+                        HorizontalFabMenu(
+                            onFileOpener = {openFileLauncher.launch(arrayOf("*/*"))},
+                            onCreateNewFile = {showNewFileDialog = true},
+                            flagFileNN = currentFile == null,
+                            onSaveFile = {
+                                viewModel.saveCurrentFile(context.contentResolver) { suggestedName ->
+                                    // This lambda is called if "Save As" is needed
+                                    saveFileLauncher.launch(suggestedName)
+                                }
+                            }
+                        )
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                AnimatedVisibility(
-                    visible = fabExpanded,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SmallFloatingActionButton(
-                            onClick = {
-                                // Use the launcher which now calls the ViewModel
-                                openFileLauncher.launch(arrayOf("*/*")) // Allow any file type initially
-                            }
-                        ) {
-                            Icon(Icons.Default.FolderOpen, "Abrir archivo")
-                        }
-                        SmallFloatingActionButton(
-                            onClick = { showNewFileDialog = true }
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.NoteAdd, "Nuevo archivo")
-                        }
-                        // Check if the *selected* file can be saved
-                        if (currentFile != null) {
-                            SmallFloatingActionButton(
-                                onClick = {
-                                    // Delegate saving to ViewModel
-                                    viewModel.saveCurrentFile(context.contentResolver) { suggestedName ->
-                                        // This lambda is called if "Save As" is needed
-                                        saveFileLauncher.launch(suggestedName)
-                                    }
-                                }
-                            ) {
-                                Icon(Icons.Default.Save, "Guardar archivo")
-                            }
-                            SmallFloatingActionButton(
-                                onClick = { showBottomSheet = true }
-                            ) {
-                                Icon(Icons.Default.Code, "Insertar bloque de código")
-                            }
-                        }
-                    }
-                }
-                FloatingActionButton(
-                    onClick = { fabExpanded = !fabExpanded }
-                ) {
-                    val rotation by animateFloatAsState(
-                        targetValue = if (fabExpanded) 45f else 0f,
-                        label = "FAB rotation"
-                    )
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Expandir",
-                        modifier = Modifier.rotate(rotation)
-                    )
-                }
-            }
         }
     ) { innerPadding ->
         // Estado local para el índice seleccionado para evitar condiciones de carrera
-        val openFiles = editorState.openFiles
         val currentSelectedIndex = editorState.selectedIndex
         
         // Validar el índice antes de la composición
@@ -209,62 +175,77 @@ fun EditorScaffold(
             currentSelectedIndex.coerceIn(0, maxOf(0, openFiles.size - 1))
         }
 
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+        Box(modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize()) {
             if (openFiles.isNotEmpty()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    ScrollableTabRow(
-                        selectedTabIndex = safeIndex,
-                        modifier = Modifier.fillMaxWidth(),
-                        edgePadding = 8.dp,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        indicator = { tabPositions ->
-                            if (tabPositions.isNotEmpty() && safeIndex < tabPositions.size) {
-                                TabRowDefaults.Indicator(
-                                    modifier = Modifier.tabIndicatorOffset(tabPositions[safeIndex])
-                                )
-                            }
-                        }
+                    // Custom tab layout
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp), // Altura reducida
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = 2.dp
                     ) {
-                        // Asegurarnos de que la lista no cambie durante la composición
-                        val stableFiles = remember(openFiles) { openFiles.toList() }
-                        stableFiles.forEachIndexed { index, file ->
-                            key(file.uri ?: file.name) {
-                                Tab(
-                                    selected = index == safeIndex,
-                                    onClick = { 
-                                        if (index != safeIndex) {
-                                            scope.launch {
-                                                viewModel.selectFile(index)
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val stableFiles = remember(openFiles) { openFiles.toList() }
+                            stableFiles.forEachIndexed { index, file ->
+                                key(file.uri ?: file.name) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .widthIn(min = 100.dp, max = 160.dp)
+                                            .height(24.dp),
+                                        onClick = { 
+                                            if (index != safeIndex) {
+                                                scope.launch {
+                                                    viewModel.selectFile(index)
+                                                }
                                             }
-                                        }
-                                    },
-                                    text = {
-                                        Text(
-                                            text = file.name + if (file.isUnsaved) "*" else "",
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                    },
-                                    modifier = Modifier.padding(horizontal = 4.dp),
-                                    icon = {
-                                        if (stableFiles.size > 1 || file.uri != null) {
-                                            IconButton(
-                                                onClick = { 
-                                                    scope.launch {
-                                                        viewModel.closeFile(index)
-                                                    }
-                                                },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
+                                        },
+                                        selected = index == safeIndex,
+                                        color = if (index == safeIndex) 
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                        else 
+                                            MaterialTheme.colorScheme.surface
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = file.name + if (file.isUnsaved) "*" else "",
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            if (stableFiles.size > 1 || file.uri != null) {
                                                 Icon(
                                                     Icons.Default.Close,
                                                     contentDescription = "Close ${file.name}",
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clickable {
+                                                            scope.launch {
+                                                                viewModel.closeFile(index)
+                                                            }
+                                                        },
+                                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
                                             }
                                         }
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -288,7 +269,9 @@ fun EditorScaffold(
                 }
             } else {
                 Box(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("No files open.")

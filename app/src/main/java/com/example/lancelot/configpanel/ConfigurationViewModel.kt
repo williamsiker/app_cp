@@ -1,4 +1,4 @@
-package com.example.lancelot.configpanel.viewmodel
+package com.example.lancelot.configpanel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

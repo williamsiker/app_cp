@@ -27,6 +27,7 @@ import com.example.lancelot.configpanel.ConfigPanel
 import com.example.lancelot.mcpe.components.EditorScaffold
 import com.example.lancelot.rust.DebugPanelScreen
 import com.example.lancelot.ui.theme.LancelotTheme
+import com.example.lancelot.webview.WebViewScreen
 import kotlinx.serialization.Serializable
 import org.koin.compose.KoinContext
 

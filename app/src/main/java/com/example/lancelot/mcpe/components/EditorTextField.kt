@@ -14,14 +14,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextLayoutResult
-import com.example.lancelot.mcpe.model.TextState
-import com.example.lancelot.mcpe.state.EditorTextFieldState
-import com.example.lancelot.ui.theme.AppTheme
+import com.example.lancelot.mcpe.TextState
+import com.example.lancelot.mcpe.EditorTextFieldState
+import com.example.lancelot.ui.theme.DefaultAppTheme
 
 @Composable
 internal fun EditorTextField(
@@ -46,7 +45,7 @@ internal fun EditorTextField(
             density = density
         )
 
-        CompositionLocalProvider(LocalTextSelectionColors provides AppTheme.colors.selectionColors) {
+        CompositionLocalProvider(LocalTextSelectionColors provides DefaultAppTheme.colors.selectionColors) {
             BasicTextField(
                 value = textFieldState.textFieldValue,
                 onValueChange = { value: TextFieldValue ->

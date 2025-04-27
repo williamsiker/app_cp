@@ -1,4 +1,4 @@
-package com.example.lancelot.configpanel.tabs
+package com.example.lancelot.configpanel
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.lancelot.*
 import com.example.lancelot.configpanel.util.ConfigImporter
+import com.example.lancelot.utils.ColorWheel
+import com.example.lancelot.utils.toColor
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

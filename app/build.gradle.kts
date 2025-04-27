@@ -20,11 +20,9 @@ cargo {
 val buildRustLib by tasks.registering(Exec::class) {
     workingDir = file("D:\\Code\\Rust\\rust-android\\rust-lib") // ajusta si tu path cambia
     commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "build.ps1")
-    // Solo se ejecuta si el archivo existe
     onlyIf { file("D:\\Code\\Rust\\rust-android\\rust-lib\\build.ps1").exists() }
 }
 
-// Haz que esta tarea corra antes del preBuild
 tasks.named("preBuild") {
     dependsOn(buildRustLib)
 }
@@ -32,7 +30,7 @@ tasks.named("preBuild") {
 android {
     namespace = "com.example.lancelot"
     compileSdk = 35
-    //ndkVersion = "29.0.13113456 rc1" slows the build :'=/
+    //ndkVersion = "29.0.13113456 rc1" //slows the build :'=/
     defaultConfig {
         applicationId = "com.example.lancelot"
         minSdk = 25
@@ -76,6 +74,11 @@ android {
     }
     room {
         schemaDirectory("$projectDir/schemas")
+    }
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+        }
     }
 }
 

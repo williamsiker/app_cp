@@ -1,4 +1,4 @@
-package com.example.lancelot.mcpe.state
+package com.example.lancelot.mcpe
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -13,8 +13,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
-import com.example.lancelot.mcpe.model.TextState
-import com.example.lancelot.ui.theme.AppTheme
+import com.example.lancelot.ui.theme.DefaultAppTheme
 
 @Stable
 class EditorTextFieldState(
@@ -55,6 +54,10 @@ class EditorTextFieldState(
         if (wasEnterPressed) {
             handleAutoIndent()
         }
+    }
+
+    fun getOffsetCursorValue()  {
+
     }
 
     private fun handleAutoIndent() {
@@ -101,16 +104,16 @@ class EditorTextFieldState(
     }
 
     private fun styleString(str: String, highlightedReferenceRanges: List<TextRange>) = buildAnnotatedString {
-        withStyle(AppTheme.code.simple) {
+        withStyle(DefaultAppTheme.code.simple) {
             val strFormatted = str.replace("\t", " ")
             append(strFormatted)
-            addStyle(AppTheme.code.comment, strFormatted, RegExps.comment)
-            addStyle(AppTheme.code.punctuation, strFormatted, RegExps.punctuation)
-            addStyle(AppTheme.code.keyword, strFormatted, RegExps.keyword)
-            addStyle(AppTheme.code.value, strFormatted, RegExps.value)
-            addStyle(AppTheme.code.annotation, strFormatted, RegExps.annotation)
+            addStyle(DefaultAppTheme.code.comment, strFormatted, RegExps.comment)
+            addStyle(DefaultAppTheme.code.punctuation, strFormatted, RegExps.punctuation)
+            addStyle(DefaultAppTheme.code.keyword, strFormatted, RegExps.keyword)
+            addStyle(DefaultAppTheme.code.value, strFormatted, RegExps.value)
+            addStyle(DefaultAppTheme.code.annotation, strFormatted, RegExps.annotation)
             for (range in highlightedReferenceRanges) {
-                addStyle(AppTheme.code.reference, range.start, range.end)
+                addStyle(DefaultAppTheme.code.reference, range.start, range.end)
             }
         }
     }

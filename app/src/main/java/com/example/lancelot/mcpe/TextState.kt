@@ -1,8 +1,9 @@
-package com.example.lancelot.mcpe.model
+package com.example.lancelot.mcpe
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,8 +24,8 @@ class TextState(
         const val LINE_SEPARATOR = '\n'
     }
 
-    val indent = " ".repeat(INDENT_SIZE)
-    val pairChars = mapOf(
+    private val indent = " ".repeat(INDENT_SIZE)
+    private val pairChars = mapOf(
         '(' to ')',
         '{' to '}',
         '[' to ']',
@@ -35,13 +36,13 @@ class TextState(
 
     var text by mutableStateOf(text.replace("\r\n", LINE_SEPARATOR.toString()))
     val highlightedReferenceRanges = mutableStateListOf<TextRange>()
-    var caretOffset by mutableStateOf(0)
+    var caretOffset by mutableIntStateOf(0)
     var selection by mutableStateOf(TextRange.Zero)
     var textLayoutResult by mutableStateOf<TextLayoutResult?>(null)
 
     private val boundingBox by derivedStateOf {
         textLayoutResult?.let { layoutResult ->
-            if (layoutResult.layoutInput.text.length > 0)
+            if (layoutResult.layoutInput.text.isNotEmpty())
                 layoutResult.getBoundingBox(0)
             else null
         }
@@ -54,7 +55,7 @@ class TextState(
         boundingBox?.height ?: 0f
     }
 
-    fun isSelected() = caretOffset == -1
+    private fun isSelected() = caretOffset == -1
 
     fun insertIndent() {
         if (isSelected()) return
@@ -156,7 +157,7 @@ class TextState(
 
     fun getCaretRect() = if (caretOffset != -1) getCursorRectForOffset(caretOffset) else Rect.Zero
 
-    fun getPositionForOffset(offset: Int): IntOffset = getCursorRectForOffset(offset).bottomLeft.round()
+    private fun getPositionForOffset(offset: Int): IntOffset = getCursorRectForOffset(offset).bottomLeft.round()
 
     private fun getCursorRectForOffset(offset: Int): Rect = textLayoutResult?.let { layoutResult ->
         if (offset >= layoutResult.layoutInput.text.length) {
@@ -220,7 +221,7 @@ class TextState(
         return TextRange(startOffset, endOffset + 1)
     }
 
-    fun clearReferences() {
+    private fun clearReferences() {
         if (highlightedReferenceRanges.isNotEmpty()) highlightedReferenceRanges.clear()
     }
 
@@ -325,10 +326,10 @@ class TextState(
 
     fun selectTextRange(textRange: TextRange) {
         selection = textRange
-        if (textRange.collapsed) {
-            caretOffset = selection.start
+        caretOffset = if (textRange.collapsed) {
+            selection.start
         } else {
-            caretOffset = -1
+            -1
         }
     }
 

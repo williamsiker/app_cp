@@ -1,4 +1,4 @@
-package com.example.lancelot
+package com.example.lancelot.utils
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures

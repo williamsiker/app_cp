@@ -1,4 +1,4 @@
-package com.example.lancelot.viewmodel
+package com.example.lancelot.webview
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class BrowserViewModel : ViewModel() {
+class ViewModel : ViewModel() {
     private val _lastUrl = MutableStateFlow<String?>(null)
     val lastUrl = _lastUrl.asStateFlow()
 
