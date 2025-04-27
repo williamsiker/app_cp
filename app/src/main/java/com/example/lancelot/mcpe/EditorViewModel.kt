@@ -27,14 +27,14 @@ import kotlinx.coroutines.sync.withLock
  */
 data class CodeFile(
     val name: String,
-    val content: TextState = TextState(""),
+    val content: EditorTextFieldState,
     val uri: Uri? = null,
     val isUnsaved: Boolean = false,
     val mimeType: String = "text/plain"
 )
 
 data class EditorState(
-    val openFiles: List<CodeFile> = listOf(CodeFile(name = "untitled", isUnsaved = true)), // Start with one untitled file
+    val openFiles: List<CodeFile> = listOf(CodeFile(name = "untitled", content = EditorTextFieldState(TextState("")), isUnsaved = true)),
     val currentFile: CodeFile? = openFiles.firstOrNull(),
     val selectedIndex: Int = 0
 )
@@ -91,7 +91,7 @@ class EditorViewModel : ViewModel() {
                 }
 
                 val finalFiles = if (updatedFiles.isEmpty()) {
-                    listOf(CodeFile(name = "untitled", isUnsaved = true))
+                    listOf(CodeFile(name = "untitled", content = EditorTextFieldState(TextState("")), isUnsaved = true))
                 } else updatedFiles
 
                 val newSelectedIndex = when {
@@ -117,28 +117,25 @@ class EditorViewModel : ViewModel() {
     fun loadAndOpenFile(uri: Uri, contentResolver: ContentResolver) {
         viewModelScope.launch {
             try {
-                val content = readFileContent(uri, contentResolver) // Suspending function on IO dispatcher
+                val content = readFileContent(uri, contentResolver)
                 val fileName = getFileNameFromUri(uri, contentResolver)
                 val mimeType = contentResolver.getType(uri) ?: FileUtils.getMimeType(fileName)
 
-                // Update state on the main thread
                 updateStateSync { currentState ->
                     val existingIndex = currentState.openFiles.indexOfFirst { it.uri == uri }
                     val newFile = CodeFile(
                         name = fileName,
-                        content = TextState(content), // Create new TextState
+                        content = EditorTextFieldState(TextState(content)),
                         uri = uri,
-                        isUnsaved = false, // Freshly loaded = saved state
+                        isUnsaved = false,
                         mimeType = mimeType
                     )
                     if (existingIndex >= 0) {
-                        // Replace existing file
                         currentState.copy(
                             openFiles = currentState.openFiles.toMutableList().apply { this[existingIndex] = newFile },
                             selectedIndex = existingIndex
                         )
                     } else {
-                        // Add new file
                         val newFiles = currentState.openFiles + newFile
                         currentState.copy(
                             openFiles = newFiles,
@@ -147,9 +144,7 @@ class EditorViewModel : ViewModel() {
                     }
                 }
             } catch (e: IOException) {
-                // Handle exceptions (e.g., show a toast or update state with error)
                 println("Error opening file: $e")
-                // You might want to update the UI state to show an error message
             }
         }
     }
@@ -161,34 +156,28 @@ class EditorViewModel : ViewModel() {
     fun saveFileToUri(fileToSave: CodeFile, targetUri: Uri, contentResolver: ContentResolver) {
         viewModelScope.launch {
             try {
-                writeFileContent(targetUri, fileToSave.content.text, contentResolver) // Suspending function on IO dispatcher
+                writeFileContent(targetUri, fileToSave.content.textState.text, contentResolver)
                 val newName = getFileNameFromUri(targetUri, contentResolver)
                 val newMimeType = contentResolver.getType(targetUri) ?: FileUtils.getMimeType(newName)
 
-                // Update state on the main thread
                 updateStateSync { currentState ->
                     val index = currentState.openFiles.indexOfFirst { it.uri == fileToSave.uri || (it.uri == null && it.name == fileToSave.name) }
                     if (index >= 0) {
                         val updatedFile = currentState.openFiles[index].copy(
-                            uri = targetUri, // Update URI
-                            name = newName, // Update name
-                            isUnsaved = false, // Mark as saved
-                            mimeType = newMimeType // Update mime type
+                            uri = targetUri,
+                            name = newName,
+                            isUnsaved = false,
+                            mimeType = newMimeType
                         )
                         currentState.copy(
-                            openFiles = currentState.openFiles.toMutableList().apply { this[index] = updatedFile },
-                            // Keep the same index selected
-                            selectedIndex = index
+                            openFiles = currentState.openFiles.toMutableList().apply { this[index] = updatedFile }
                         )
                     } else {
-                        // Should not happen if called correctly, but handle defensively
                         currentState
                     }
                 }
             } catch (e: IOException) {
-                // Handle exceptions
                 println("Error saving file: $e")
-                // Update UI state with error
             }
         }
     }
@@ -199,13 +188,13 @@ class EditorViewModel : ViewModel() {
      * Runs file writing on Dispatchers.IO if overwriting.
      */
     fun saveCurrentFile(contentResolver: ContentResolver, onSaveAsNeeded: (suggestedName: String) -> Unit) {
-        val fileToSave = state.value.currentFile ?: return // No file selected
+        val fileToSave = state.value.currentFile ?: return
 
         if (fileToSave.uri != null) {
             // Existing file, overwrite it on IO thread
             viewModelScope.launch {
                 try {
-                    writeFileContent(fileToSave.uri, fileToSave.content.text, contentResolver)
+                    writeFileContent(fileToSave.uri, fileToSave.content.textState.text, contentResolver)
                     // Update state on main thread
                     updateStateSync { currentState ->
                         val index = currentState.openFiles.indexOfFirst { it.uri == fileToSave.uri }
@@ -214,11 +203,12 @@ class EditorViewModel : ViewModel() {
                             currentState.copy(
                                 openFiles = currentState.openFiles.toMutableList().apply { this[index] = savedFile }
                             )
-                        } else { currentState }
+                        } else {
+                            currentState
+                        }
                     }
                 } catch (e: IOException) {
                     println("Error saving file: $e")
-                    // Update UI state with error
                 }
             }
         } else {
@@ -306,7 +296,7 @@ class EditorViewModel : ViewModel() {
     // closeFile, selectFile, updateFileContent remain largely the same as the previous version,
     // focusing only on state manipulation.
 
-    suspend fun updateFileContent(file: CodeFile, newContent: TextState) {
+    suspend fun updateFileContent(file: CodeFile, newContent: EditorTextFieldState) {
         updateStateSync { currentState ->
             // Find based on URI if available, otherwise name for untitled
             val index = currentState.openFiles.indexOfFirst {

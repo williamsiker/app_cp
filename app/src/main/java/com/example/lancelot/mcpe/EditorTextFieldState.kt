@@ -17,12 +17,12 @@ import com.example.lancelot.ui.theme.DefaultAppTheme
 
 @Stable
 class EditorTextFieldState(
-    private val textState: TextState
+    internal val textState: TextState
 ) {
     private val annotatedString by derivedStateOf { styleString(textState.text, textState.highlightedReferenceRanges) }
 
     private var _selection by mutableStateOf(TextRange.Zero)
-    private val selection by derivedStateOf {
+    val selection by derivedStateOf {
         if (textState.caretOffset == -1) {
             if (textState.selection != TextRange.Zero) {
                 textState.selection

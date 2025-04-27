@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lancelot.mcpe.CodeFile
+import com.example.lancelot.mcpe.EditorTextFieldState
 import com.example.lancelot.mcpe.EditorViewModel
 import com.example.lancelot.mcpe.TextState
 import com.example.lancelot.utils.FileUtils
@@ -91,12 +92,12 @@ fun EditorScaffold(
     var isOnSnippet = remember {mutableStateOf(false)}
 
     LaunchedEffect(imeVisible, currentFile?.content?.selection) {
-        currentFile?.content?.let { textState ->
-            if (imeVisible && textState.selection != TextRange.Zero && textState.selection != lastSelectionRef.value) {
-                lastSelectionRef.value = textState.selection
-                textState.textLayoutResult?.let { layoutResult ->
-                    val selectionLine = layoutResult.getLineForOffset(textState.selection.start)
-                    val lineHeight = textState.lineHeight
+        currentFile?.content?.let { Editor ->
+            if (imeVisible && Editor.selection != TextRange.Zero && Editor.selection != lastSelectionRef.value) {
+                lastSelectionRef.value = Editor.selection
+                Editor.textState.textLayoutResult?.let { layoutResult ->
+                    val selectionLine = layoutResult.getLineForOffset(Editor.selection.start)
+                    val lineHeight = Editor.textState.lineHeight
                     val visibleLines = with(density) {
                         (configuration.screenHeightDp.dp.toPx() - windowInsets.getBottom(density)) / lineHeight
                     }
@@ -253,12 +254,12 @@ fun EditorScaffold(
                     // Editor actual
                     editorState.currentFile?.let { file ->
                         EditorTextField(
-                            textState = file.content,
+                            textFieldState = file.content,
                             scrollState = scrollState,
                             onScroll = { delta -> scope.launch { scrollState.scrollBy(delta) } },
-                            onTextChanged = { newContent ->
+                            onTextChanged = { newState ->
                                 scope.launch {
-                                    viewModel.updateFileContent(file, newContent)
+                                    viewModel.updateFileContent(file, newState)
                                 }
                             },
                             modifier = Modifier
@@ -307,9 +308,9 @@ fun EditorScaffold(
                         if (newFileName.isNotBlank()) {
                             val newFile = CodeFile(
                                 name = newFileName,
-                                isUnsaved = true, // It's unsaved until first save
+                                isUnsaved = true,
                                 mimeType = FileUtils.getMimeType(newFileName),
-                                content = TextState("") // Start with empty content
+                                content = EditorTextFieldState(TextState(""))
                             )
                             // Open the new file in the editor state
                             scope.launch {

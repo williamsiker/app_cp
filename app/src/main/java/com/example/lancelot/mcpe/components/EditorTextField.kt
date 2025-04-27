@@ -25,19 +25,17 @@ import com.example.lancelot.ui.theme.DefaultAppTheme
 @Composable
 internal fun EditorTextField(
     modifier: Modifier = Modifier,
-    textState: TextState,
+    textFieldState: EditorTextFieldState,
     scrollState: ScrollState,
     onScroll: (Float) -> Unit = {},
-    onTextChanged: (TextState) -> Unit = {},
+    onTextChanged: (EditorTextFieldState) -> Unit = {},
     onLineNumbersWidthChange: (Int) -> Unit = {}
 ) {
-    val textFieldState = remember(textState) { EditorTextFieldState(textState) }
     val horizontalScroll = rememberScrollState()
     val density = LocalDensity.current
 
     Row(modifier = Modifier.fillMaxSize()) {
         LineNumbers(
-            textState = textState,
             textFieldState = textFieldState,
             scrollState = scrollState,
             horizontalScrollState = horizontalScroll,
@@ -50,7 +48,7 @@ internal fun EditorTextField(
                 value = textFieldState.textFieldValue,
                 onValueChange = { value: TextFieldValue ->
                     textFieldState.onTextFieldValueChange(value)
-                    onTextChanged(textState)
+                    onTextChanged(textFieldState)
                 },
                 modifier = Modifier
                     .weight(1f)
