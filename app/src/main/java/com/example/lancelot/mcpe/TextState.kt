@@ -33,12 +33,18 @@ class TextState(
         '"' to '"',
         '\'' to '\''
     )
-
-    var text by mutableStateOf(text.replace("\r\n", LINE_SEPARATOR.toString()))
+    
+    private var rope by mutableStateOf(Rope(text.replace("\r\n", LINE_SEPARATOR.toString())))
     val highlightedReferenceRanges = mutableStateListOf<TextRange>()
     var caretOffset by mutableIntStateOf(0)
     var selection by mutableStateOf(TextRange.Zero)
     var textLayoutResult by mutableStateOf<TextLayoutResult?>(null)
+    
+    var text: String
+        get() = rope.toString()
+        set(value) {
+            rope = Rope(value)
+        }
 
     private val boundingBox by derivedStateOf {
         textLayoutResult?.let { layoutResult ->
@@ -117,12 +123,8 @@ class TextState(
 
     private fun getCurrentLine(): String {
         val lineStart = getLineStartOffset()
-        val lineEnd = text.indexOf(LINE_SEPARATOR, caretOffset)
-        return if (lineEnd == -1) {
-            text.substring(lineStart)
-        } else {
-            text.substring(lineStart, lineEnd)
-        }
+        val lineEnd = text.indexOf(LINE_SEPARATOR, caretOffset).let { if (it == -1) text.length else it }
+        return rope.substring(lineStart, lineEnd)
     }
 
     fun newLineWithIndent() {
@@ -311,6 +313,7 @@ class TextState(
 
     fun getTextRangesOf(str: String): List<TextRange> {
         if (str.isEmpty()) return emptyList()
+        val text = rope.toString() // For search operations, convert to string
         var i = 0
         val list = mutableListOf<TextRange>()
         while (true) {
@@ -341,14 +344,18 @@ class TextState(
     private fun insert(char: Char, offsetShift: Int = 0) = insert(char.toString(), offsetShift)
 
     private fun insert(str: String, offsetShift: Int = 0) {
-        text = text.replaceRange(caretOffset, caretOffset, str)
+        rope = rope.insert(caretOffset, str)
         caretOffset += str.length - offsetShift
     }
 
     private fun getLineStartOffset(): Int {
         if (caretOffset == 0) return 0
-        val i = text.lastIndexOf(LINE_SEPARATOR, caretOffset - 1)
-        return if (i == -1) 0 else i + 1
+        var i = caretOffset - 1
+        while (i >= 0) {
+            if (rope.charAt(i) == LINE_SEPARATOR) return i + 1
+            i--
+        }
+        return 0
     }
 
     private fun getLineIndent(absolute: Boolean = false, beforeCaret: Boolean = false): Int {
