@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lancelot.rust.RustBridge
+import com.example.lancelot.rust.Token
 import com.example.lancelot.utils.FileUtils // Assuming you have this utility
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,10 @@ import kotlinx.coroutines.sync.withLock
  *  @property name e.g "main.rs"
  *  @property uri is the path to the file on the device
  *  @property mimeType is the mime type for avoid automatic.rename file-extension
+ *  @property isUnsaved is true if the file has unsaved changes
+ *  @property treePointer is the pointer to the rust-library AST
+ *  @property tokens maintains the tokens to highlight in the editor
+ *  @see RustBridge for native implementation of syntax-highlight and code-navigation?
  */
 data class CodeFile(
     val name: String,
@@ -31,7 +37,17 @@ data class CodeFile(
     val uri: Uri? = null,
     val isUnsaved: Boolean = false,
     val mimeType: String = "text/plain"
+//    var treePointer: Long = 0L,
+//    var tokens: ArrayList<Token> = ArrayList()
 )
+//{
+//    fun update(code: String, languageName: String) {
+//        this.treePointer = RustBridge.parseIncremental(code, languageName, treePointer)
+//        val tokensRaw  = RustBridge.tokenizeCode(code, languageName, treePointer)
+//        tokens.clear()
+//        tokens.addAll(tokensRaw)
+//    }
+//}
 
 data class EditorState(
     val openFiles: List<CodeFile> = listOf(CodeFile(name = "untitled", content = EditorTextFieldState(TextState("")), isUnsaved = true)),
@@ -39,11 +55,14 @@ data class EditorState(
     val selectedIndex: Int = 0
 )
 
+/***
+ * @property stateMutex allows you not no block the viewModel scope
+ */
 class EditorViewModel : ViewModel() {
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
 
-    // Mutex para garantizar operaciones atómicas en el estado
+    // Mutex para garantizar operaciones atómicas en el estado (thread-safe?)
     private val stateMutex = Mutex()
 
     private suspend fun updateStateSync(block: (EditorState) -> EditorState) {
@@ -51,7 +70,6 @@ class EditorViewModel : ViewModel() {
             _state.update { currentState ->
                 val updatedState = block(currentState)
                 val safeIndex = ensureValidIndex(updatedState.openFiles, updatedState.selectedIndex)
-                // Asegurar que el currentFile siempre corresponda al índice seleccionado
                 val safeCurrentFile = if (safeIndex >= 0) updatedState.openFiles.getOrNull(safeIndex) else null
                 updatedState.copy(
                     selectedIndex = safeIndex,
