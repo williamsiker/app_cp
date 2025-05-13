@@ -340,4 +340,49 @@ class EditorViewModel : ViewModel() {
 
     // Deprecate or remove the generic updateFile if no longer needed
     // fun updateFile(file: CodeFile) { ... }
+
+    suspend fun closeFile(indexToClose: Int) {
+        updateStateSync { currentState ->
+            if (currentState.openFiles.size > indexToClose) {
+                // Clean up the file being closed
+                currentState.openFiles[indexToClose].content.cleanup()
+                
+                val safeIndexToClose = indexToClose.coerceIn(0, currentState.openFiles.size - 1)
+                val updatedFiles = currentState.openFiles.toMutableList().apply {
+                    removeAt(safeIndexToClose)
+                }
+
+                val finalFiles = if (updatedFiles.isEmpty()) {
+                    listOf(CodeFile(name = "untitled", content = EditorTextFieldState(TextState("")), isUnsaved = true))
+                } else updatedFiles
+
+                // ...rest of existing code...
+            } else currentState
+        }
+    }
+
+    suspend fun selectFile(index: Int) {
+        updateStateSync { currentState ->
+            // Clean up the previous file's tree
+            currentState.currentFile?.content?.cleanup()
+            
+            currentState.copy(
+                selectedIndex = index.coerceIn(0, maxOf(0, currentState.openFiles.size - 1))
+            )
+        }
+    }
+
+    // Add cleanup on ViewModel clear
+    override fun onCleared() {
+        super.onCleared()
+        viewModelScope.launch {
+            updateStateSync { currentState ->
+                // Clean up all files
+                currentState.openFiles.forEach { file ->
+                    file.content.cleanup()
+                }
+                currentState
+            }
+        }
+    }
 }

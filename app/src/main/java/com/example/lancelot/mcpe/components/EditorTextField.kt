@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import com.example.lancelot.mcpe.TextState
 import com.example.lancelot.mcpe.EditorTextFieldState
 import com.example.lancelot.ui.theme.DefaultAppTheme
+import androidx.compose.runtime.DisposableEffect
 
 @Composable
 internal fun EditorTextField(
@@ -39,6 +40,13 @@ internal fun EditorTextField(
 ) {
     val horizontalScroll = rememberScrollState()
     val density = LocalDensity.current
+
+    // Add DisposableEffect to clean up when the component is disposed
+    DisposableEffect(textFieldState) {
+        onDispose {
+            textFieldState.cleanup()
+        }
+    }
 
     Row(modifier = Modifier.fillMaxSize()) {
         LineNumbers(
