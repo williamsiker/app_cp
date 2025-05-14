@@ -110,50 +110,100 @@ class EditorTextFieldState(
             val resultObj = JSONObject(json)
             Log.d("EditorTextFieldState", "Highlight result: $json")
             val events = resultObj.getJSONArray("events")
+            val highlightNames = resultObj.getJSONArray("highlight_names")
             val tokens = ArrayList<Token>()
+            
+            var currentType: String? = null
 
             for (i in 0 until events.length()) {
                 val event = events.get(i)
-
                 if (event is JSONObject) {
                     when {
-                        event.has("Source") -> {
-                            val obj = event.getJSONObject("Source")
-                            tokens.add(
-                                Token(
-                                    kind = "source",
-                                    nodeType = "source",
-                                    positions = intArrayOf(
-                                        obj.getInt("start"),
-                                        obj.getInt("end"),
-                                        0, 0, 0, 0 // Opcional si Tree-sitter no devuelve líneas/columnas
-                                    )
-                                )
-                            )
+                        event.has("Source") -> {                            val source = event.getJSONObject("Source")
+                            val start = source.getInt("start")
+                            val end = source.getInt("end")
+                            
+                            // Validar rangos antes de crear el token
+                            if (start < end && end <= textState.text.length) {
+                                // Si hay un tipo activo, crear un token
+                                if (currentType != null) {
+                                    tokens.add(Token(
+                                        kind = currentType,
+                                        nodeType = currentType,
+                                        positions = intArrayOf(
+                                            start, end,  // byte range
+                                            0, start,    // startRow, startCol (temporal)
+                                            0, end       // endRow, endCol (temporal)
+                                        )
+                                    ))
+                                }
+                            } else {
+                                Log.w("EditorTextFieldState", "Invalid token range: start=$start, end=$end, textLength=${textState.text.length}")
+                            }
                         }
-                        event.has("Highlight") -> {
-                            val obj = event.getJSONObject("Highlight")
-                            tokens.add(
-                                Token(
-                                    kind = obj.getString("kind"),
-                                    nodeType = "highlight",
-                                    positions = intArrayOf(
-                                        obj.getInt("start"),
-                                        obj.getInt("end"),
-                                        0, 0, 0, 0
-                                    )
-                                )
-                            )
+                        event.has("Start") -> {
+                            val start = event.getJSONObject("Start")
+                            val index = start.getInt("index")
+                            currentType = if (index < highlightNames.length()) {
+                                highlightNames.getString(index)
+                            } else "text"
                         }
-                        // Agrega más tipos de eventos si necesitas
+                        event.has("End") -> {
+                            currentType = null
+                        }
                     }
                 }
             }
-
+            
+            // Actualizar las posiciones de línea para cada token
+            updateLinePositions(tokens, textState.text)
+            
             tokens
         } catch (e: Exception) {
             Log.e("EditorTextFieldState", "Error parsing highlight result: $e")
             emptyList()
+        }
+    }
+    
+    private fun updateLinePositions(tokens: List<Token>, text: String) {
+        var currentLine = 0
+        var currentCol = 0
+        var pos = 0
+        
+        tokens.forEach { token ->
+            // Encontrar la posición de inicio
+            while (pos < token.startByte) {
+                if (pos < text.length) {
+                    if (text[pos] == '\n') {
+                        currentLine++
+                        currentCol = 0
+                    } else {
+                        currentCol++
+                    }
+                }
+                pos++
+            }
+            
+            // Guardar posición de inicio
+            token.positions[2] = currentLine  // startRow
+            token.positions[3] = currentCol   // startCol
+            
+            // Encontrar la posición final
+            while (pos < token.endByte) {
+                if (pos < text.length) {
+                    if (text[pos] == '\n') {
+                        currentLine++
+                        currentCol = 0
+                    } else {
+                        currentCol++
+                    }
+                }
+                pos++
+            }
+            
+            // Guardar posición final
+            token.positions[4] = currentLine  // endRow
+            token.positions[5] = currentCol   // endCol
         }
     }
 
@@ -162,22 +212,31 @@ class EditorTextFieldState(
         buildAnnotatedString {
             val text = textState.text
             if (text.isEmpty()) return@buildAnnotatedString
-            
-            var lastIndex = 0
+              var lastIndex = 0
             for (token in tokens) {
-                // Texto sin resaltar antes del token
-                if (token.startColumn > lastIndex) {
-                    withStyle(DefaultAppTheme.code.simple) {
-                        append(text.substring(lastIndex, token.startColumn))
+                try {
+                    // Texto sin resaltar antes del token
+                    if (token.startByte > lastIndex && lastIndex < text.length) {
+                        val endIndex = minOf(token.startByte, text.length)
+                        withStyle(DefaultAppTheme.code.simple) {
+                            append(text.substring(lastIndex, endIndex))
+                        }
                     }
+                    
+                    // Texto resaltado del token
+                    if (token.startByte < text.length) {
+                        val endIndex = minOf(token.endByte, text.length)
+                        withStyle(getStyleForToken(token.kind)) {
+                            append(text.substring(token.startByte, endIndex))
+                        }
+                    }
+                    
+                    lastIndex = minOf(token.endByte, text.length)
+                } catch (e: Exception) {
+                    Log.e("EditorTextFieldState", "Error processing token: $token, text length: ${text.length}", e)
+                    // Skip this token if there's an error
+                    continue
                 }
-                
-                // Texto resaltado del token
-                withStyle(getStyleForToken(token.kind)) {
-                    append(text.substring(token.startColumn, token.endColumn))
-                }
-                
-                lastIndex = token.endColumn
             }
             
             // Texto restante sin resaltar
@@ -186,19 +245,30 @@ class EditorTextFieldState(
                     append(text.substring(lastIndex))
                 }
             }
+            
+            // Aplicar resaltado de referencias seleccionadas
+            textState.highlightedReferenceRanges.forEach { range ->
+                addStyle(DefaultAppTheme.code.reference, range.start, range.end)
+            }
         }
     }
     
     private fun getStyleForToken(type: String): SpanStyle = when(type.lowercase()) {
         "keyword" -> DefaultAppTheme.code.keyword
-        "function" -> DefaultAppTheme.code.keyword
+        "function" -> DefaultAppTheme.code.keyword 
         "type" -> DefaultAppTheme.code.value
         "string" -> DefaultAppTheme.code.annotation
         "number" -> DefaultAppTheme.code.value
         "comment" -> DefaultAppTheme.code.comment
-        "constant" -> DefaultAppTheme.code.reference
+        "constant" -> DefaultAppTheme.code.reference  
         "variable" -> DefaultAppTheme.code.simple
-        else -> DefaultAppTheme.code.simple
+        "operator" -> DefaultAppTheme.code.punctuation
+        "property" -> DefaultAppTheme.code.simple
+        "string.system" -> DefaultAppTheme.code.annotation
+        "string.library" -> DefaultAppTheme.code.annotation
+        "string.include" -> DefaultAppTheme.code.annotation
+        "preprocessor.include" -> DefaultAppTheme.code.annotation
+        else -> DefaultAppTheme.code.keyword
     }
 
     private fun AnnotatedString.Builder.appendStyledLine(line: String, tokens: List<Token>) {

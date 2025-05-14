@@ -18,9 +18,9 @@ cargo {
 }*/
 
 val buildRustLib by tasks.registering(Exec::class) {
-    workingDir = file("D:\\Code\\Rust\\rust-android\\rust-lib") // ajusta si tu path cambia
+    workingDir = file("D:\\Android\\Lancelot\\rust-lib") // ajusta si tu path cambia
     commandLine = listOf("powershell", "-ExecutionPolicy", "Bypass", "-File", "build.ps1")
-    onlyIf { file("D:\\Code\\Rust\\rust-android\\rust-lib\\build.ps1").exists() }
+    onlyIf { file("D:\\Android\\Lancelot\\rust-lib\\build.ps1").exists() }
 }
 
 tasks.named("preBuild") {
