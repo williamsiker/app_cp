@@ -41,13 +41,6 @@ internal fun EditorTextField(
     val horizontalScroll = rememberScrollState()
     val density = LocalDensity.current
 
-    // Add DisposableEffect to clean up when the component is disposed
-    DisposableEffect(textFieldState) {
-        onDispose {
-            textFieldState.cleanup()
-        }
-    }
-
     Row(modifier = Modifier.fillMaxSize()) {
         LineNumbers(
             textFieldState = textFieldState,
@@ -80,11 +73,11 @@ internal fun EditorTextField(
     }
 
     // Important for the development !!!
-    LaunchedEffect(textFieldState.textFieldValue.selection.start) {
-        textFieldState.textState.textLayoutResult?.let{
-            val cursorOffset = textFieldState.textFieldValue.selection.start
-            val cursorRect = textFieldState.textState.textLayoutResult!!.getCursorRect(cursorOffset)
-            Log.d("CursorPosition", "Cursor X: ${cursorRect.left}, Y: ${cursorRect.top}")
-        }
-    }
+//    LaunchedEffect(textFieldState.textFieldValue.selection.start) {
+//        textFieldState.textState.textLayoutResult?.let{
+//            val cursorOffset = textFieldState.textFieldValue.selection.start
+//            val cursorRect = textFieldState.textState.textLayoutResult!!.getCursorRect(cursorOffset)
+//            Log.d("CursorPosition", "Cursor X: ${cursorRect.left}, Y: ${cursorRect.top}")
+//        }
+//    }
 }

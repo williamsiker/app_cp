@@ -44,13 +44,6 @@ int main() {
     return 0;
 }
             """.trimIndent()
-    val tokens = try {
-        RustBridge.tokenizeCode(code, "cpp", RustBridge.parseIncremental(code, "cpp", 0))
-    } catch (e: Exception) {
-        emptyArray<Token>().also { 
-            Log.e("RustBridge", "Error tokenizing code", e)
-        }
-    }
 
     var resultText by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -91,37 +84,8 @@ int main() {
         }
     ) { paddingValues ->
         LazyColumn(contentPadding = paddingValues) {
-            items(tokens) { token ->
-                DbgTokens(token, code)
-            }
+
         }
-    }
-}
-
-@Composable
-fun DbgTokens(token: Token, code: String) {
-    val snippet = try {
-        code.substring(token.startByte, token.endByte)
-    } catch (e: Exception) {
-        "Error: ${e.message}"
-    }
-
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(8.dp)) {
-        Text(
-            text = "Kind: ${token.kind} | NodeType: ${token.nodeType}",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            text = "Snippet: \"$snippet\"",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "Positions: [${token.positions.joinToString(", ")}]",
-            style = MaterialTheme.typography.bodySmall
-        )
-        HorizontalDivider()
     }
 }
 

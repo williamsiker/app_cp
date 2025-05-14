@@ -8,11 +8,19 @@ object RustBridge {
     }
     external fun initLogger()
     external fun helloRust() : String
-    external fun parseIncremental(code: String, languageName: String, tree_ptr: Long) : Long
-    external fun tokenizeCode(code: String, languageName: String, tree_ptr: Long) : Array<Token>
+    external fun highlight(
+        code: String,
+        languageName: String,
+        h: String,
+        i: String,
+        l: String,
+        t: String,
+        hn: String
+    ) : String
+
+
     external fun executeCode(code: String, languageName: String, input: String) : String
-    external fun freeTree(tree_ptr: Long)
-    
+
     external fun ktFuture(
         code: String,
         languageName: String,

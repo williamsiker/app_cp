@@ -14,32 +14,289 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.withStyle
+import com.example.lancelot.config.ConfigManager
+import com.example.lancelot.config.LanguageQueries
 import com.example.lancelot.rust.RustBridge
 import com.example.lancelot.rust.Token
 import com.example.lancelot.ui.theme.DefaultAppTheme
+import kotlinx.coroutines.*
+import org.json.JSONArray
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 
 @Stable
 class EditorTextFieldState(
     internal val textState: TextState,
-    private var treePointer: Long = 0L,
-    private var tokens: ArrayList<Token> = ArrayList()
+    private var tokens: ArrayList<Token> = ArrayList(),
+    private val languageName: String = "cpp"
 ) {
-    private val annotatedString by derivedStateOf {
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var isDisposed = false
+    private var lastParsedText = ""
+    private val tokenCache = mutableMapOf<Int, List<Token>>()
+    private var queries: LanguageQueries? = null
+    private var parsingJob: Job? = null
+      init {
+        scope.launch {
+            queries = getLanguageQueries(languageName)
+        }
+    }
+    
+    private suspend fun getLanguageQueries(language: String): com.example.lancelot.config.LanguageQueries? {
+        return withContext(Dispatchers.IO) {
+            org.koin.java.KoinJavaComponent.getKoin()
+                .get<ConfigManager>()
+                .readLanguageQueries(language)
+        }
+    }
+      private fun parseAndHighlight(text: String) {
+        if (isDisposed) return
+        
         try {
-            styleString(textState.text, tokens, textState.highlightedReferenceRanges)
+            // Si no tenemos queries para el lenguaje, no podemos resaltar
+            val currentQueries = queries ?: return
+            
+            // Limpiar cache cuando el texto cambia
+            if (text != lastParsedText) {
+                tokenCache.clear()
+            }
+            
+            // Obtener los tokens usando las queries y un nuevo formato JSON para los highlight names
+            val highlightNamesJson = """[
+                "keyword", "function", "type", "string", "number", 
+                "comment", "constant", "variable", "operator", "property"
+            ]""".trimIndent()
+            
+            // El parámetro t es para el tema, por ahora usaremos un tema básico
+            val themeJson = """{ 
+                "keyword": "#0000FF",
+                "function": "#795E26",
+                "type": "#267F99",
+                "string": "#A31515",
+                "number": "#098658",
+                "comment": "#008000",
+                "constant": "#0070C1",
+                "variable": "#001080",
+                "operator": "#000000",
+                "property": "#001080"
+            }""".trimIndent()
+            
+            val highlightResult = RustBridge.highlight(
+                text,
+                languageName,
+                currentQueries.highlights,
+                currentQueries.injections,
+                currentQueries.locals,
+                themeJson,
+                highlightNamesJson
+            )
+
+            val newTokens = parseHighlightResult(highlightResult)
+            tokens.clear()
+            tokens.addAll(newTokens)
+            lastParsedText = text
+            
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e("EditorTextFieldState", "Error in syntax highlighting", e)
-            // Fallback to regex-based highlighting
-            styleStringRegex(textState.text, textState.highlightedReferenceRanges)
+            Log.e("EditorTextFieldState", "Error in parseAndHighlight", e)
+            tokens.clear()
+            tokenCache.clear()
         }
     }
 
-    fun updateTokens(newTokens: ArrayList<Token>) {
-        tokens = newTokens
+    private fun parseHighlightResult(json: String): List<Token> {
+        return try {
+            val resultObj = JSONObject(json)
+            Log.d("EditorTextFieldState", "Highlight result: $json")
+            val events = resultObj.getJSONArray("events")
+            val tokens = ArrayList<Token>()
+
+            for (i in 0 until events.length()) {
+                val event = events.get(i)
+
+                if (event is JSONObject) {
+                    when {
+                        event.has("Source") -> {
+                            val obj = event.getJSONObject("Source")
+                            tokens.add(
+                                Token(
+                                    kind = "source",
+                                    nodeType = "source",
+                                    positions = intArrayOf(
+                                        obj.getInt("start"),
+                                        obj.getInt("end"),
+                                        0, 0, 0, 0 // Opcional si Tree-sitter no devuelve líneas/columnas
+                                    )
+                                )
+                            )
+                        }
+                        event.has("Highlight") -> {
+                            val obj = event.getJSONObject("Highlight")
+                            tokens.add(
+                                Token(
+                                    kind = obj.getString("kind"),
+                                    nodeType = "highlight",
+                                    positions = intArrayOf(
+                                        obj.getInt("start"),
+                                        obj.getInt("end"),
+                                        0, 0, 0, 0
+                                    )
+                                )
+                            )
+                        }
+                        // Agrega más tipos de eventos si necesitas
+                    }
+                }
+            }
+
+            tokens
+        } catch (e: Exception) {
+            Log.e("EditorTextFieldState", "Error parsing highlight result: $e")
+            emptyList()
+        }
     }
 
-    fun updateTreePointer(newPointer: Long) {
-        treePointer = newPointer
+    // Actualizar el AnnotatedString cuando cambian los tokens
+    private val annotatedString by derivedStateOf {
+        buildAnnotatedString {
+            val text = textState.text
+            if (text.isEmpty()) return@buildAnnotatedString
+            
+            var lastIndex = 0
+            for (token in tokens) {
+                // Texto sin resaltar antes del token
+                if (token.startColumn > lastIndex) {
+                    withStyle(DefaultAppTheme.code.simple) {
+                        append(text.substring(lastIndex, token.startColumn))
+                    }
+                }
+                
+                // Texto resaltado del token
+                withStyle(getStyleForToken(token.kind)) {
+                    append(text.substring(token.startColumn, token.endColumn))
+                }
+                
+                lastIndex = token.endColumn
+            }
+            
+            // Texto restante sin resaltar
+            if (lastIndex < text.length) {
+                withStyle(DefaultAppTheme.code.simple) {
+                    append(text.substring(lastIndex))
+                }
+            }
+        }
+    }
+    
+    private fun getStyleForToken(type: String): SpanStyle = when(type.lowercase()) {
+        "keyword" -> DefaultAppTheme.code.keyword
+        "function" -> DefaultAppTheme.code.keyword
+        "type" -> DefaultAppTheme.code.value
+        "string" -> DefaultAppTheme.code.annotation
+        "number" -> DefaultAppTheme.code.value
+        "comment" -> DefaultAppTheme.code.comment
+        "constant" -> DefaultAppTheme.code.reference
+        "variable" -> DefaultAppTheme.code.simple
+        else -> DefaultAppTheme.code.simple
+    }
+
+    private fun AnnotatedString.Builder.appendStyledLine(line: String, tokens: List<Token>) {
+        withStyle(DefaultAppTheme.code.simple) {
+            append(line)
+
+            // Resaltado de referencias
+            textState.highlightedReferenceRanges
+                .filter { range -> 
+                    val lineStart = getLineStartOffset(line)
+                    val lineEnd = lineStart + line.length
+                    range.start >= lineStart && range.end <= lineEnd
+                }
+                .forEach { range ->
+                    val lineStart = getLineStartOffset(line)
+                    addStyle(
+                        DefaultAppTheme.code.reference, 
+                        range.start - lineStart, 
+                        range.end - lineStart
+                    )
+                }
+        }
+    }
+
+    private fun getLineStartOffset(line: String): Int {
+        val text = textState.text
+        return text.indexOf(line)
+    }
+
+    fun onTextFieldValueChange(textFieldValue: TextFieldValue) {
+        if (isDisposed) return
+        
+        val oldText = textState.text
+        val newText = textFieldValue.text
+        
+        textState.text = newText
+        _selection = textFieldValue.selection
+        textState.caretOffset = if (_selection.collapsed) _selection.start else -1
+        textState.selection = _selection
+        
+        if (shouldParse(oldText, newText)) {
+            // Cancelar el trabajo anterior si existe
+            parsingJob?.cancel()
+            
+            // Iniciar nuevo parseo
+            parsingJob = scope.launch {
+                delay(200) // Pequeño delay para evitar parsear en cada tecla
+                parseAndHighlight(newText)
+            }
+        }
+    }
+    
+    private fun shouldParse(oldText: String, newText: String): Boolean {
+        if (newText == lastParsedText) return false
+        if (newText.length > 100000) return false
+        
+        // Parsear si:
+        // 1. Es el primer parseo
+        // 2. Se completó una palabra (espacio, punto, etc)
+        // 3. Se presionó enter
+        // 4. Hay un cambio significativo
+        return lastParsedText.isEmpty() ||
+               newText.endsWith(" ") || 
+               newText.endsWith(".") ||
+               newText.endsWith(";") ||
+               newText.endsWith("\n") ||
+               calculateSignificantChange(oldText, newText)
+    }
+    
+    private fun calculateSignificantChange(oldText: String, newText: String): Boolean {
+        // Si el texto es corto, cualquier cambio es significativo
+        if (newText.length < 20) return true
+        
+        val lengthDiff = kotlin.math.abs(oldText.length - newText.length)
+        
+        // Cambios grandes son significativos
+        if (lengthDiff > 10) return true
+        
+        // Comparar contenido char por char para detectar cambios pequeños pero importantes
+        val minLength = minOf(oldText.length, newText.length)
+        var changes = 0
+        
+        for (i in 0 until minLength) {
+            if (oldText[i] != newText[i]) {
+                changes++
+                if (changes >= 3) return true // 3 o más caracteres cambiados
+            }
+        }
+        
+        return false
+    }
+
+    var lineCount by mutableIntStateOf(1)
+        private set
+
+    fun onTextLayoutChange(textLayoutResult: TextLayoutResult) {
+        lineCount = textLayoutResult.lineCount
+        textState.textLayoutResult = textLayoutResult
     }
 
     private var _selection by mutableStateOf(TextRange.Zero)
@@ -55,109 +312,7 @@ class EditorTextFieldState(
 
     val textFieldValue by derivedStateOf { TextFieldValue(annotatedString, selection) }
 
-    var lineCount by mutableIntStateOf(1)
-        private set
 
-    fun onTextFieldValueChange(textFieldValue: TextFieldValue) {
-        val oldText = textState.text
-        val newText = textFieldValue.text
-        val wasEnterPressed = newText.length > oldText.length && 
-                            textFieldValue.selection.end > 0 &&
-                            newText[textFieldValue.selection.end - 1] == '\n'
-        
-        textState.text = textFieldValue.text
-        _selection = textFieldValue.selection
-        textState.caretOffset =
-            if (_selection.collapsed) _selection.start
-            else -1
-        textState.selection = _selection
-
-        try {
-            processCodeIncrementally(newText)
-        } catch (e: Exception) {
-            Log.e("EditorTextFieldState", "Error processing code", e)
-            // Reset state on error
-            treePointer = 0L
-            tokens.clear()
-        }
-
-        if (wasEnterPressed) {
-            handleAutoIndent()
-        }
-    }
-
-    private fun processCodeIncrementally(newText: String) {
-        try {
-            // Reset state if the tree pointer is invalid
-            if (treePointer < 0) {
-                treePointer = 0L
-            }
-
-            // Only attempt to parse if the text has actually changed
-            if (newText.length > 100000) {
-                Log.w("EditorTextFieldState", "Text too long for parsing, falling back to regex highlighting")
-                treePointer = 0L
-                tokens.clear()
-                return
-            }
-
-            // Use coroutine with timeout
-            val timeout = System.currentTimeMillis() + 1000 // 1 second timeout
-            val newTreePointer = try {
-                RustBridge.parseIncremental(
-                    code = newText,
-                    languageName = "cpp",
-                    tree_ptr = treePointer
-                ).also {
-                    if (System.currentTimeMillis() > timeout) {
-                        throw RuntimeException("Parsing timeout exceeded")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("EditorTextFieldState", "Error in parsing", e)
-                0L
-            }
-            
-            // If parsing succeeded, update the tree pointer
-            if (newTreePointer > 0) {
-                treePointer = newTreePointer
-                
-                // Only tokenize if we have a valid tree and haven't exceeded timeout
-                if (System.currentTimeMillis() <= timeout) {
-                    try {
-                        val newTokens = RustBridge.tokenizeCode(newText, "cpp", treePointer)
-                        if (newTokens.isNotEmpty()) {
-                            tokens.clear()
-                            tokens.addAll(newTokens)
-                        }
-                    } catch (e: Exception) {
-                        Log.e("EditorTextFieldState", "Error in tokenization", e)
-                        tokens.clear()
-                    }
-                }
-            } else {
-                Log.w("EditorTextFieldState", "Failed to parse code, tree pointer is invalid")
-                treePointer = 0L
-                tokens.clear()
-            }
-        } catch (e: Exception) {
-            Log.e("EditorTextFieldState", "Error in incremental parsing", e)
-            treePointer = 0L
-            tokens.clear()
-        }
-    }
-
-    // Cleanup method to be called when the editor is disposed
-    fun cleanup() {
-        if (treePointer > 0) {
-            try {
-                RustBridge.freeTree(treePointer)
-                treePointer = 0L
-            } catch (e: Exception) {
-                Log.e("EditorTextFieldState", "Error cleaning up tree", e)
-            }
-        }
-    }
 
     private fun handleAutoIndent() {
         val currentLine = getCurrentLine()
@@ -195,116 +350,5 @@ class EditorTextFieldState(
             else break
         }
         return spaces / 4
-    }
-
-    fun onTextLayoutChange(textLayoutResult: TextLayoutResult) {
-        lineCount = textLayoutResult.lineCount
-        textState.textLayoutResult = textLayoutResult
-    }
-
-    private val tokenStyleMap = mapOf(
-        "preprocessor.include" to DefaultAppTheme.code.keyword,
-        "string.system" to DefaultAppTheme.code.keyword,
-        "string.library" to DefaultAppTheme.code.keyword,
-        "string.include" to DefaultAppTheme.code.keyword,
-        "keyword.type" to DefaultAppTheme.code.keyword,
-        "keyword.modifier" to DefaultAppTheme.code.keyword,
-        "variable.member" to DefaultAppTheme.code.keyword,
-        "variable.parameter" to DefaultAppTheme.code.keyword,
-        "function.method" to DefaultAppTheme.code.reference,
-        "type.definition" to DefaultAppTheme.code.keyword,
-        "type.builtin" to DefaultAppTheme.code.keyword,
-        "module" to DefaultAppTheme.code.keyword,
-        "constant" to DefaultAppTheme.code.value,
-        "function" to DefaultAppTheme.code.keyword,
-        "function.call" to DefaultAppTheme.code.keyword,
-        "constructor" to DefaultAppTheme.code.keyword,
-        "variable.builtin" to DefaultAppTheme.code.keyword,
-        "constant.builtin" to DefaultAppTheme.code.keyword,
-        "boolean" to DefaultAppTheme.code.keyword,
-        "string" to DefaultAppTheme.code.value,
-        "keyword.exception" to DefaultAppTheme.code.keyword,
-        "keyword" to DefaultAppTheme.code.keyword,
-        "keyword.coroutine" to DefaultAppTheme.code.keyword,
-        "keyword.operator" to DefaultAppTheme.code.keyword,
-        "operator" to DefaultAppTheme.code.punctuation,
-        "punctuation.delimiter" to DefaultAppTheme.code.keyword,
-        "punctuation.bracket" to DefaultAppTheme.code.keyword,
-        "function.definition" to DefaultAppTheme.code.keyword,
-        "type.primitive" to DefaultAppTheme.code.keyword,
-        "function.declarator" to DefaultAppTheme.code.keyword,
-        "function.body" to DefaultAppTheme.code.keyword,
-        "function.name" to DefaultAppTheme.code.keyword,
-        "function.parameters" to DefaultAppTheme.code.simple
-    )
-
-    private fun styleString(
-        str: String,
-        tokens: List<Token>,
-        highlightedReferenceRanges: List<TextRange>
-    ) = buildAnnotatedString {
-        withStyle(DefaultAppTheme.code.simple) {
-            val strFormatted = str.replace("\t", " ")
-            append(strFormatted)
-
-            // Aplicar estilos basados en tokens
-            tokens.forEach { token ->
-                tokenStyleMap[token.kind]?.let { style ->
-                    addStyle(
-                        style,
-                        token.startColumn,
-                        token.endColumn
-                    )
-                }
-            }
-
-            // Resaltado de referencias
-            for (range in highlightedReferenceRanges) {
-                addStyle(DefaultAppTheme.code.reference, range.start, range.end)
-            }
-        }
-    }
-
-    private fun styleStringRegex(str: String, highlightedReferenceRanges: List<TextRange>) = buildAnnotatedString {
-        withStyle(DefaultAppTheme.code.simple) {
-            val strFormatted = str.replace("\t", " ")
-            append(strFormatted)
-            addStyle(DefaultAppTheme.code.comment, strFormatted, RegExps.comment)
-            addStyle(DefaultAppTheme.code.punctuation, strFormatted, RegExps.punctuation)
-            addStyle(DefaultAppTheme.code.keyword, strFormatted, RegExps.keyword)
-            addStyle(DefaultAppTheme.code.value, strFormatted, RegExps.value)
-            addStyle(DefaultAppTheme.code.annotation, strFormatted, RegExps.annotation)
-            for (range in highlightedReferenceRanges) {
-                addStyle(DefaultAppTheme.code.reference, range.start, range.end)
-            }
-        }
-    }
-
-    private fun AnnotatedString.Builder.addStyle(
-        style: SpanStyle,
-        start: Int,
-        end: Int
-    ) {
-        if (start >= 0 && end <= length && start < end) {
-            addStyle(style, start, end)
-        }
-    }
-
-    private object RegExps {
-        val keyword = Regex("\\b(" +
-                "abstract|actual|as|as\\?|break|by|catch|class|const|constructor|continue|do|else|" +
-                "expect|finally|for|fun|if|import|in|!in|interface|internal|is|!is|null|object|" +
-                "operator|override|package|private|protected|public|return|super|this|throw|try|" +
-                "typealias|typeof|val|var|when|while)\\b")
-        val punctuation = Regex("[:=\"\\[\\]{}(),]")
-        val value = Regex("\\b(true|false|[0-9]+)\\b")
-        val annotation = Regex("\\b@[a-zA-Z_]+\\b")
-        val comment = Regex("//.*")
-    }
-
-    private fun AnnotatedString.Builder.addStyle(style: SpanStyle, text: String, regexp: Regex) {
-        for (result in regexp.findAll(text)) {
-            addStyle(style, result.range.first, result.range.last + 1)
-        }
     }
 }
