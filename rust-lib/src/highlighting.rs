@@ -92,27 +92,49 @@ pub fn try_incremental_highlight(
 ) -> Option<HighlightDelta> {
     let start_time = Instant::now();
     
+    // Si los textos son idénticos, retornar el cache sin cambios
+    if cache.input == new_text {
+        return Some(HighlightDelta {
+            ranges: cache.ranges.clone(),
+            highlight_names: highlight_names.to_vec(),
+            reused_ranges: Some(vec![(0, new_text.len())]),
+            version: cache.version,
+            changed_ranges: vec![]
+        });
+    }
+    
+    // Si la diferencia es muy grande, hacer resaltado completo
     if text_difference_ratio(&cache.input, new_text) > 0.3 {
         debug!("Texts too different for incremental update");
         return None;
     }
     
     let changed_ranges = get_text_changes(&cache.input, new_text);
+    
+    // Si no hay cambios reales, retornar el cache existente
+    if changed_ranges.is_empty() {
+        return Some(HighlightDelta {
+            ranges: cache.ranges.clone(),
+            highlight_names: highlight_names.to_vec(),
+            reused_ranges: Some(vec![(0, new_text.len())]),
+            version: cache.version,
+            changed_ranges: vec![]
+        });
+    }
+    
     let reused_ranges = get_reused_ranges(&changed_ranges, new_text.len());
-
     let mut new_ranges = Vec::new();
-    let current_highlight_type: Option<usize> = None;
 
     // Reutilizar rangos no afectados
     let mut old_idx = 0;
-    let mut current_pos = 0;
+    let mut _current_pos = 0;
 
     for &(change_start, change_end) in &changed_ranges {
         // Copiar rangos antes del cambio
         while old_idx < cache.ranges.len() && cache.ranges[old_idx].end <= change_start {
             let old_range = &cache.ranges[old_idx];
             new_ranges.push(old_range.clone());
-            current_pos = old_range.end;
+            _current_pos = old_range.end;
             old_idx += 1;
         }
 
@@ -120,7 +142,7 @@ pub fn try_incremental_highlight(
         while old_idx < cache.ranges.len() && cache.ranges[old_idx].start < change_end {
             old_idx += 1;
         }
-        current_pos = change_end;
+        _current_pos = change_end;
     }
     // Copiar rangos después del último cambio
     while old_idx < cache.ranges.len() {

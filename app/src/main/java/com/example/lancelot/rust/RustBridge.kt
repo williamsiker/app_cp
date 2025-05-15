@@ -3,12 +3,74 @@ package com.example.lancelot.rust
 import java.util.concurrent.CompletableFuture
 
 object RustBridge {
+    private const val TAG = "RustBridge"
+    private val initMutex = Mutex()
+    private var isInitialized = false
+    
     init {
-        System.loadLibrary("runix") // sin "lib" ni ".so"
+        initializeSafely()
     }
-    external fun initLogger()
-    external fun helloRust() : String
-    external fun highlight(
+    
+    private fun initializeSafely() {
+        runCatching {
+            if (!isInitialized) {
+                initMutex.withLock {
+                    if (!isInitialized) {
+                        System.loadLibrary("runix")
+                        initLogger()
+                        isInitialized = true
+                    }
+                }
+            }
+        }.onFailure { e ->
+            Log.e(TAG, "Failed to initialize RustBridge", e)
+            throw RuntimeException("Failed to initialize RustBridge", e)
+        }
+    }
+
+    fun highlightSafe(
+        code: String,
+        languageName: String,
+        h: String,
+        i: String,
+        l: String,
+        t: String,
+        hn: String
+    ): RustResult<String> = runCatching {
+        if (!isInitialized) {
+            initializeSafely()
+        }
+        
+        if (code.isBlank()) {
+            return RustResult.Success("")
+        }
+
+        val result = highlight(
+            code.take(MAX_TEXT_LENGTH),
+            languageName,
+            h.ifBlank { "{}" },
+            i.ifBlank { "{}" },
+            l.ifBlank { "{}" },
+            t.ifBlank { "{}" },
+            hn.ifBlank { "[]" }
+        )
+        
+        if (result.isBlank()) {
+            RustResult.Error("Highlighting failed: empty result")
+        } else {
+            RustResult.Success(result)
+        }
+    }.fold(
+        onSuccess = { it },
+        onFailure = {
+            Log.e(TAG, "Error in highlighting", it)
+            RustResult.Error("Highlighting failed: ${it.message}")
+        }
+    )
+
+    private external fun initLogger()
+    private external fun helloRust() : String
+    private external fun highlight(
         code: String,
         languageName: String,
         h: String,

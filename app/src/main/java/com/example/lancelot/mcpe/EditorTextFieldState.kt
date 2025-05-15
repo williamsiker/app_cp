@@ -45,7 +45,7 @@ class EditorTextFieldState(
         }
     }
     
-    private suspend fun getLanguageQueries(language: String): com.example.lancelot.config.LanguageQueries? {
+    private suspend fun getLanguageQueries(language: String): LanguageQueries? {
         return withContext(Dispatchers.IO) {
             org.koin.java.KoinJavaComponent.getKoin()
                 .get<ConfigManager>()
@@ -113,7 +113,7 @@ class EditorTextFieldState(
             val resultObj = JSONObject(json)
             Log.d("EditorTextFieldState", "Highlight result: $json")
             
-            val ranges = resultObj.optJSONArray("ranges")
+            val ranges = resultObj.optJSONArray("ranges")!!
             val highlightNames = resultObj.getJSONArray("highlight_names")
             val version = resultObj.optLong("version", 0)
             val changedRanges = resultObj.optJSONArray("changed_ranges")
@@ -179,7 +179,6 @@ class EditorTextFieldState(
     ): List<Token> {
         val tokens = cachedHighlightRanges.toMutableList()
         
-        // Eliminar tokens en regiones cambiadas
         for (i in 0 until changedRanges.length()) {
             val range = changedRanges.getJSONArray(i)
             val start = range.getInt(0)
@@ -190,7 +189,6 @@ class EditorTextFieldState(
             }
         }
         
-        // Agregar nuevos tokens para regiones cambiadas
         for (i in 0 until ranges.length()) {
             val range = ranges.getJSONObject(i)
             val start = range.getInt("start")
@@ -429,8 +427,7 @@ class EditorTextFieldState(
     private val annotatedString by derivedStateOf {
         buildAnnotatedString {
             val text = textState.text
-            if (text.isEmpty()) return@buildAnnotatedString
-              var lastIndex = 0
+            var lastIndex = 0
             for (token in tokens) {
                 try {
                     // Texto sin resaltar antes del token

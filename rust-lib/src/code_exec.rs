@@ -1,36 +1,4 @@
-use jni::JNIEnv;
-use jni::objects::{JClass, JString};
-use jni::sys::jstring;
 use log::{debug, error};
-use tokio::runtime::Builder;
-
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_example_lancelot_rust_RustBridge_executeCode(
-    mut env: JNIEnv,
-    _class: JClass,
-    code: JString,
-    language_name: JString,
-    input: JString,
-) -> jstring {
-    let code: String = env.get_string(&code).unwrap().into();
-    let language_name: String = env.get_string(&language_name).unwrap().into();
-    let input: String = env.get_string(&input).unwrap().into();
-
-    // Creamos un runtime local para ejecutar async
-    let rt = Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    let result = rt.block_on(async {
-        execute_code(&code, &language_name, &input).await
-    });
-
-    // Convertimos resultado a jstring para devolver a Java
-    let output = result.unwrap_or_else(|err| err);
-
-    env.new_string(output).unwrap().into_raw()
-}
 
 pub async fn execute_code(
     code: &str,

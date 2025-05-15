@@ -1,10 +1,12 @@
 pub mod cache;
+pub mod code_exec;
+pub mod future;
+pub mod highlighting;
+pub mod incremental;
+pub mod jni_bridge;
+
+pub mod logger;
 pub mod text_utils;
-mod logger;
-mod code_exec;
-mod future;
-mod types;
-mod theme;
-mod highlighting;
-mod utils;
-mod jni_bridge;
+pub mod theme;
+pub mod types;
+pub mod utils;
