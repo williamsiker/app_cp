@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::Arc;
 use tree_sitter::Tree;
-use std::hash::{Hash, Hasher};
 
 
 #[derive(Debug, Clone, Serialize)]
