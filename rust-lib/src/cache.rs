@@ -5,6 +5,7 @@ use once_cell::sync::Lazy;
 use crate::types::{Theme, HighlightRange, HighlightDelta};
 use tree_sitter::Tree;
 use crate::text_utils::text_difference_ratio;
+use std::hash::{Hash, Hasher};
 
 // Cache para temas
 pub static THEME_CACHE: Lazy<Mutex<HashMap<u64, Arc<Theme>>>> = Lazy::new(|| {

@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tree_sitter::Tree;
 use std::hash::{Hash, Hasher};
-use std::time::Instant;
 
 // Las definiciones de Theme, HighlightRange y HighlightDelta se mantienen solo aquí
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -125,45 +124,4 @@ impl IncrementalState {
 
         changes
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct HighlightCache {
-    pub tree: Arc<Tree>,
-    pub ranges: Vec<HighlightRange>,
-    pub delta: HighlightDelta,
-    pub input: String,
-    pub version: u64,
-    pub last_update: Instant
-}
-
-impl HighlightCache {
-    pub fn new(tree: Arc<Tree>, ranges: Vec<HighlightRange>, delta: HighlightDelta, input: String) -> Self {
-        Self { 
-            tree,
-            ranges,
-            delta,
-            input,
-            version: 0,
-            last_update: Instant::now()
-        }
-    }
-
-    pub fn matches_input(&self, input: &str) -> bool {
-        if self.is_stale() {
-            return false;
-        }
-        crate::utils::text_difference_ratio(&self.input, input) < 0.3
-    }
-    
-    pub fn is_stale(&self) -> bool {
-        self.last_update.elapsed().as_secs() > 300
-    }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub enum HighlightEventType {
-    Start { index: usize },
-    End,
-    Source { start: usize, end: usize }
 }

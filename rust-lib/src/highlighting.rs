@@ -4,9 +4,10 @@ use tree_sitter::{Tree, Language};
 use tree_sitter_highlight::HighlightEvent;
 use log::debug;
 use anyhow::Result;
+
+use crate::cache::*;
 use crate::types::*;
 use crate::utils::*;
-use crate::caching::*;
 
 // Core highlighting functions
 

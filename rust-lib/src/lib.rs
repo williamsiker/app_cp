@@ -9,6 +9,8 @@ use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use log::{debug, error};
 
+pub mod cache;
+pub mod text_utils;
 mod logger;
 mod code_exec;
 mod future;
@@ -17,11 +19,11 @@ mod caching;
 mod theme;
 mod highlighting;
 mod utils;
+mod jni_bridge;
 
+use crate::cache::{HighlightCache, get_cached_theme, PARSE_CACHE, PARSER_CACHE};
 use caching::*;
 use highlighting::{load_language, process_highlights, try_incremental_highlight};
-use theme::get_cached_theme;
-use types::*;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_helloRust(

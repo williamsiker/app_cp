@@ -1,7 +1,7 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jlong, jstring};
-use tree_sitter::{ffi::TSTree, Parser, Tree, Language};
+use tree_sitter::{ffi::TSTree, Parser, Tree};
 use tree_sitter_highlight::{HighlightConfiguration, Highlighter};
 use std::sync::Arc;
 use std::collections::hash_map::DefaultHasher;
@@ -11,7 +11,6 @@ use std::time::Instant;
 
 use crate::cache::{get_cached_theme, PARSE_CACHE, PARSER_CACHE, get_highlight_cache, update_highlight_cache};
 use crate::highlighting::{load_language, process_highlights, try_incremental_highlight};
-use crate::types::{HighlightDelta, HighlightRange, Theme}; // Assuming types are now centralized
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_example_lancelot_rust_RustBridge_helloRust(
@@ -87,8 +86,8 @@ pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_highligh
     let highlight_names: Vec<String> = env.get_string(&highlight_names_json_jstr)
         .map_err(|e| error!("Failed to get highlight_names_json: {:?}", e))
         .ok()
-        .and_then(|s| s.to_str().map_err(|e| error!("Failed to convert highlight_names_json to str: {:?}",e)).ok())
-        .and_then(|s_str| serde_json::from_str(s_str).map_err(|e| error!("Failed to parse highlight_names_json: {:?}",e)).ok())
+        .and_then(|s| s.to_str().map(|s_str| s_str.to_owned()).map_err(|e| error!("Failed to convert highlight_names_json to str: {:?}",e)).ok())
+        .and_then(|s_owned| serde_json::from_str::<Vec<String>>(&s_owned).map_err(|e| error!("Failed to parse highlight_names_json: {:?}",e)).ok())
         .unwrap_or_else(|| vec![
             "keyword".to_string(), "function".to_string(), "type".to_string(),
             "string".to_string(), "number".to_string(), "comment".to_string(),
@@ -97,7 +96,7 @@ pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_highligh
 
     if let Some(cache) = get_highlight_cache(&language_name) {
         if cache.matches_input(&input) {
-            if let Some(delta) = try_incremental_highlight(&cache, &input, &highlight_names) {
+            if let Some(delta) = try_incremental_highlight(&*cache, &input, &highlight_names) {
                 return match serde_json::to_string(&delta) {
                     Ok(json) => env.new_string(&json).unwrap().into_raw(),
                     Err(e) => {
