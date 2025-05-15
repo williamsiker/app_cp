@@ -1,27 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tree_sitter::Tree;
 use std::hash::{Hash, Hasher};
 
-// Las definiciones de Theme, HighlightRange y HighlightDelta se mantienen solo aquí
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Theme {
-    pub theme: HashMap<String, String>
-}
-
-impl Theme {
-    pub fn calculate_hash(&self) -> u64 {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        let mut keys: Vec<_> = self.theme.keys().collect();
-        keys.sort(); // Sort keys for consistent hashing
-        for key in keys {
-            key.hash(&mut hasher);
-            self.theme.get(key).unwrap().hash(&mut hasher);
-        }
-        hasher.finish()
-    }
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HighlightRange {

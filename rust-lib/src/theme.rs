@@ -3,8 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use crate::caching::THEME_CACHE;
-
+use crate::cache::THEME_CACHE;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Theme {
     pub theme: HashMap<String, String>

@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use once_cell::sync::Lazy;
-use crate::types::{Theme, HighlightRange, HighlightDelta};
+use crate::types::{HighlightRange, HighlightDelta};
 use tree_sitter::Tree;
 use crate::text_utils::text_difference_ratio;
 use std::hash::{Hash, Hasher};
+use crate::theme::Theme;
 
 // Cache para temas
 pub static THEME_CACHE: Lazy<Mutex<HashMap<u64, Arc<Theme>>>> = Lazy::new(|| {
