@@ -100,7 +100,7 @@ pub fn try_incremental_highlight(
     let reused_ranges = get_reused_ranges(&changed_ranges, new_text.len());
 
     let mut new_ranges = Vec::new();
-    let mut current_highlight_type: Option<usize> = None;
+    let current_highlight_type: Option<usize> = None;
 
     // Reutilizar rangos no afectados
     let mut old_idx = 0;

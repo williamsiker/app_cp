@@ -2,13 +2,12 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jlong, jstring};
 use tree_sitter::{ffi::TSTree, Parser, Tree};
-use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
+use tree_sitter_highlight::{HighlightConfiguration, Highlighter};
 use std::sync::Arc;
 use std::time::Instant;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 use log::{debug, error};
-use serde::Serialize;
 
 mod logger;
 mod code_exec;
@@ -41,8 +40,7 @@ pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_freeTree
     tree_ptr: jlong,
 ) {
     if tree_ptr != 0 {
-        let tree = unsafe {  Tree::from_raw(tree_ptr as *mut TSTree); };
-        drop(tree); // Llama automáticamente a `tree.delete()`
+        let _tree = unsafe {  let _ = Tree::from_raw(tree_ptr as *mut TSTree); };
     }
 }
 

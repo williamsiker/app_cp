@@ -4,7 +4,6 @@ use std::sync::Arc;
 use tree_sitter::Tree;
 use std::hash::{Hash, Hasher};
 use std::time::Instant;
-use std::collections::hash_map::DefaultHasher;
 
 // Las definiciones de Theme, HighlightRange y HighlightDelta se mantienen solo aquí
 #[derive(Debug, Serialize, Deserialize, Clone)]
