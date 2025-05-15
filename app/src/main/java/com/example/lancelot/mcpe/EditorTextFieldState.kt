@@ -36,7 +36,10 @@ class EditorTextFieldState(
     private val tokenCache = mutableMapOf<Int, List<Token>>()
     private var queries: LanguageQueries? = null
     private var parsingJob: Job? = null
-      init {
+    private var lastHighlightVersion = 0L
+    private var cachedHighlightRanges = mutableListOf<Token>()
+    
+    init {
         scope.launch {
             queries = getLanguageQueries(languageName)
         }
@@ -109,60 +112,275 @@ class EditorTextFieldState(
         return try {
             val resultObj = JSONObject(json)
             Log.d("EditorTextFieldState", "Highlight result: $json")
-            val events = resultObj.getJSONArray("events")
+            
+            val ranges = resultObj.optJSONArray("ranges")
             val highlightNames = resultObj.getJSONArray("highlight_names")
+            val version = resultObj.optLong("version", 0)
+            val changedRanges = resultObj.optJSONArray("changed_ranges")
+            val reusedRanges = resultObj.optJSONArray("reused_ranges")
+            
+            // Si tenemos un cambio incremental válido, actualizar solo las regiones necesarias
+            if (version > 0 && version == lastHighlightVersion + 1 && changedRanges != null) {
+                return updateIncrementalHighlights(
+                    ranges,
+                    highlightNames,
+                    changedRanges,
+                    reusedRanges
+                )
+            }
+            
+            // Si no podemos hacer actualización incremental, hacer un parseo completo
             val tokens = ArrayList<Token>()
             
-            var currentType: String? = null
-
-            for (i in 0 until events.length()) {
-                val event = events.get(i)
-                if (event is JSONObject) {
-                    when {
-                        event.has("Source") -> {                            val source = event.getJSONObject("Source")
-                            val start = source.getInt("start")
-                            val end = source.getInt("end")
-                            
-                            // Validar rangos antes de crear el token
-                            if (start < end && end <= textState.text.length) {
-                                // Si hay un tipo activo, crear un token
-                                if (currentType != null) {
-                                    tokens.add(Token(
-                                        kind = currentType,
-                                        nodeType = currentType,
-                                        positions = intArrayOf(
-                                            start, end,  // byte range
-                                            0, start,    // startRow, startCol (temporal)
-                                            0, end       // endRow, endCol (temporal)
-                                        )
-                                    ))
-                                }
-                            } else {
-                                Log.w("EditorTextFieldState", "Invalid token range: start=$start, end=$end, textLength=${textState.text.length}")
-                            }
-                        }
-                        event.has("Start") -> {
-                            val start = event.getJSONObject("Start")
-                            val index = start.getInt("index")
-                            currentType = if (index < highlightNames.length()) {
-                                highlightNames.getString(index)
-                            } else "text"
-                        }
-                        event.has("End") -> {
-                            currentType = null
-                        }
-                    }
+            for (i in 0 until ranges.length()) {
+                val range = ranges.getJSONObject(i)
+                val start = range.getInt("start")
+                val end = range.getInt("end")
+                val type = range.getInt("highlight_type")
+                
+                if (start < end && end <= textState.text.length) {
+                    val highlightType = if (type < highlightNames.length()) {
+                        highlightNames.getString(type)
+                    } else "text"
+                    
+                    tokens.add(Token(
+                        kind = highlightType,
+                        nodeType = highlightType,
+                        positions = intArrayOf(
+                            start, end,
+                            0, start,
+                            0, end
+                        )
+                    ))
                 }
             }
             
-            // Actualizar las posiciones de línea para cada token
+            // Actualizar posiciones de línea para todos los tokens
             updateLinePositions(tokens, textState.text)
             
+            if (version > 0) {
+                lastHighlightVersion = version
+                cachedHighlightRanges = tokens.toMutableList()
+            }
+            
             tokens
+            
         } catch (e: Exception) {
             Log.e("EditorTextFieldState", "Error parsing highlight result: $e")
             emptyList()
         }
+    }
+
+    private fun updateIncrementalHighlights(
+        ranges: JSONArray,
+        highlightNames: JSONArray,
+        changedRanges: JSONArray,
+        reusedRanges: JSONArray?
+    ): List<Token> {
+        val tokens = cachedHighlightRanges.toMutableList()
+        
+        // Eliminar tokens en regiones cambiadas
+        for (i in 0 until changedRanges.length()) {
+            val range = changedRanges.getJSONArray(i)
+            val start = range.getInt(0)
+            val end = range.getInt(1)
+            
+            tokens.removeAll { token ->
+                token.startByte >= start && token.endByte <= end
+            }
+        }
+        
+        // Agregar nuevos tokens para regiones cambiadas
+        for (i in 0 until ranges.length()) {
+            val range = ranges.getJSONObject(i)
+            val start = range.getInt("start")
+            val end = range.getInt("end")
+            val type = range.getInt("highlight_type")
+            
+            if (start < end && end <= textState.text.length) {
+                val highlightType = if (type < highlightNames.length()) {
+                    highlightNames.getString(type)
+                } else "text"
+                
+                tokens.add(Token(
+                    kind = highlightType,
+                    nodeType = highlightType,
+                    positions = intArrayOf(
+                        start, end,
+                        0, start,
+                        0, end
+                    )
+                ))
+            }
+        }
+        
+        // Ordenar tokens por posición de inicio
+        tokens.sortBy { it.startByte }
+        
+        // Actualizar posiciones de línea
+        updateLinePositions(tokens, textState.text)
+        
+        cachedHighlightRanges = tokens.toMutableList()
+        return tokens
+    }
+
+    private fun parseRangesFormat(resultObj: JSONObject): List<Token> {
+        val ranges = resultObj.getJSONArray("ranges")
+        val highlightNames = resultObj.getJSONArray("highlight_names")
+        val version = resultObj.optLong("version", 0)
+        val tokens = ArrayList<Token>()
+        
+        for (i in 0 until ranges.length()) {
+            val range = ranges.getJSONObject(i)
+            val start = range.getInt("start")
+            val end = range.getInt("end") 
+            val type = range.getInt("highlight_type")
+            
+            if (start < end && end <= textState.text.length) {
+                val highlightType = if (type < highlightNames.length()) {
+                    highlightNames.getString(type)
+                } else "text"
+                
+                tokens.add(Token(
+                    kind = highlightType,
+                    nodeType = highlightType,
+                    positions = intArrayOf(
+                        start, end,  // byte range
+                        0, start,    // startRow, startCol (temporal)
+                        0, end       // endRow, endCol (temporal) 
+                    )
+                ))
+            }
+        }
+        
+        updateLinePositions(tokens, textState.text)
+        
+        if (version > 0) {
+            lastHighlightVersion = version
+            cachedHighlightRanges = tokens.toMutableList()
+        }
+        
+        return tokens
+    }
+    
+    private fun updateIncrementalHighlights(
+        changedRanges: JSONArray,
+        events: JSONArray,
+        highlightNames: JSONArray
+    ): List<Token> {
+        val tokens = cachedHighlightRanges.toMutableList()
+        
+        // Remove tokens in changed regions
+        for (i in 0 until changedRanges.length()) {
+            val range = changedRanges.getJSONArray(i)
+            val start = range.getInt(0)
+            val end = range.getInt(1)
+            
+            tokens.removeAll { token ->
+                token.startByte >= start && token.endByte <= end
+            }
+        }
+        
+        // Add new tokens for changed regions
+        var currentType: String? = null
+        var currentStart = -1
+        
+        for (i in 0 until events.length()) {
+            val event = events.get(i)
+            if (event is JSONObject) {
+                when {
+                    event.has("Source") -> {
+                        val source = event.getJSONObject("Source")
+                        val start = source.getInt("start")
+                        val end = source.getInt("end")
+                        
+                        if (start < end && end <= textState.text.length) {
+                            if (currentType != null) {
+                                tokens.add(Token(
+                                    kind = currentType,
+                                    nodeType = currentType,
+                                    positions = intArrayOf(
+                                        start, end,
+                                        0, start,
+                                        0, end
+                                    )
+                                ))
+                            }
+                        }
+                    }
+                    event.has("Start") -> {
+                        val start = event.getJSONObject("Start")
+                        val index = start.getInt("index")
+                        currentType = if (index < highlightNames.length()) {
+                            highlightNames.getString(index)
+                        } else "text"
+                    }
+                    event.has("End") -> {
+                        currentType = null
+                    }
+                }
+            }
+        }
+        
+        // Sort tokens by start position
+        tokens.sortBy { it.startByte }
+        
+        // Update line positions
+        updateLinePositions(tokens, textState.text)
+        
+        cachedHighlightRanges = tokens.toMutableList()
+        return tokens
+    }
+
+    private fun parseFullHighlights(events: JSONArray, highlightNames: JSONArray): List<Token> {
+        val tokens = ArrayList<Token>()
+        
+        var currentType: String? = null
+
+        for (i in 0 until events.length()) {
+            val event = events.get(i)
+            if (event is JSONObject) {
+                when {
+                    event.has("Source") -> {                            val source = event.getJSONObject("Source")
+                        val start = source.getInt("start")
+                        val end = source.getInt("end")
+                        
+                        // Validar rangos antes de crear el token
+                        if (start < end && end <= textState.text.length) {
+                            // Si hay un tipo activo, crear un token
+                            if (currentType != null) {
+                                tokens.add(Token(
+                                    kind = currentType,
+                                    nodeType = currentType,
+                                    positions = intArrayOf(
+                                        start, end,  // byte range
+                                        0, start,    // startRow, startCol (temporal)
+                                        0, end       // endRow, endCol (temporal)
+                                    )
+                                ))
+                            }
+                        } else {
+                            Log.w("EditorTextFieldState", "Invalid token range: start=$start, end=$end, textLength=${textState.text.length}")
+                        }
+                    }
+                    event.has("Start") -> {
+                        val start = event.getJSONObject("Start")
+                        val index = start.getInt("index")
+                        currentType = if (index < highlightNames.length()) {
+                            highlightNames.getString(index)
+                        } else "text"
+                    }
+                    event.has("End") -> {
+                        currentType = null
+                    }
+                }
+            }
+        }
+        
+        // Actualizar las posiciones de línea para cada token
+        updateLinePositions(tokens, textState.text)
+        
+        return tokens
     }
     
     private fun updateLinePositions(tokens: List<Token>, text: String) {
