@@ -3,7 +3,9 @@ package com.example.lancelot.editor
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.lancelot.common.RustResult
 import com.example.lancelot.rust.RustBridge
+import com.example.lancelot.rust.Token
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,6 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import android.util.Log
+import org.json.JSONObject
 
 class EditorState(
     initialText: String = "",
@@ -137,19 +140,29 @@ class EditorState(
             "[]"
         }
     }
+
+    private fun parseHighlightResult(json: String): List<Token> {
+        return try {
+            val obj = JSONObject(json)
+            val ranges = obj.getJSONArray("ranges")
+            val names = obj.getJSONArray("highlight_names")
+            val tokens = mutableListOf<Token>()
+            for (i in 0 until ranges.length()) {
+                val range = ranges.getJSONObject(i)
+                val start = range.getInt("start")
+                val end = range.getInt("end")
+                val typeIdx = range.getInt("highlight_type")
+                val type = if (typeIdx < names.length()) names.getString(typeIdx) else "text"
+                tokens.add(Token(type, type, intArrayOf(start, end, 0, 0, 0, 0)))
+            }
+            tokens
+        } catch (e: Exception) {
+            Log.e("EditorState", "Error parsing highlight result", e)
+            emptyList()
+        }
+    }
     
     companion object {
         private const val TAG = "EditorState"
     }
-}
-
-data class Token(
-    val start: Int,
-    val end: Int,
-    val type: String
-)
-
-sealed class RustResult<out T> {
-    data class Success<T>(val data: T) : RustResult<T>()
-    data class Error(val error: String) : RustResult<Nothing>()
 }

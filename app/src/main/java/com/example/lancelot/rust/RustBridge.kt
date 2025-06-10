@@ -1,9 +1,14 @@
 package com.example.lancelot.rust
 
+import android.util.Log
+import com.example.lancelot.common.RustResult
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.CompletableFuture
 
 object RustBridge {
     private const val TAG = "RustBridge"
+    private const val MAX_TEXT_LENGTH = 100_000
     private val initMutex = Mutex()
     private var isInitialized = false
     
