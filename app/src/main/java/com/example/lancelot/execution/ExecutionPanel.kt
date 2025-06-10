@@ -17,6 +17,7 @@ import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+<<<<<<< HEAD
 fun ExecutionPanel(code: String, language: String, input: String) {
     val viewModel: ExecutionViewModel = koinViewModel()
     val state = viewModel.state
@@ -27,6 +28,20 @@ fun ExecutionPanel(code: String, language: String, input: String) {
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).padding(16.dp)) {
+=======
+fun ExecutionPanel(
+    code: String,
+    language: String,
+    input: String,
+    embedded: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val viewModel: ExecutionViewModel = koinViewModel()
+    val state = viewModel.state
+
+    val content: @Composable (Modifier) -> Unit = { inner ->
+        Column(modifier = inner.padding(16.dp)) {
+>>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
             when (state) {
                 ExecutionState.Idle -> {
                     Button(onClick = { viewModel.run(code, language, input) }) {
@@ -48,4 +63,20 @@ fun ExecutionPanel(code: String, language: String, input: String) {
             }
         }
     }
+<<<<<<< HEAD
+=======
+
+    if (embedded) {
+        content(modifier)
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(title = { Text("Run") })
+            },
+            modifier = modifier
+        ) { padding ->
+            content(Modifier.padding(padding))
+        }
+    }
+>>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
 }

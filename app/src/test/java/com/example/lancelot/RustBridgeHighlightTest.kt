@@ -1,6 +1,10 @@
 package com.example.lancelot
 
 import com.example.lancelot.rust.RustBridge
+<<<<<<< HEAD
+=======
+import com.example.lancelot.common.RustResult
+>>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
 import org.junit.Assert.assertTrue
 import org.junit.Test
 

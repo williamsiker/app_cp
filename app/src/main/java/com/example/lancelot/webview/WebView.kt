@@ -43,6 +43,81 @@ import androidx.compose.ui.Alignment
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
+fun WebViewContent(
+    url: String,
+    onCodeEditorNavigation: () -> Unit,
+    modifier: Modifier = Modifier,
+    showFab: Boolean = true
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val webViewModel = viewModel<ViewModel>()
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        webViewModel.updateLastUrl(url)
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            isLoading = true
+                            view?.let {
+                                webViewModel.updateNavigationState(
+                                    it.canGoBack(),
+                                    it.canGoForward()
+                                )
+                            }
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            isLoading = false
+                            view?.let {
+                                webViewModel.updateNavigationState(
+                                    it.canGoBack(),
+                                    it.canGoForward()
+                                )
+                            }
+                            url?.let { webViewModel.updateLastUrl(it) }
+                        }
+                    }
+
+                    loadUrl(url)
+                }.also { webView = it }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+        )
+        if (isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+            )
+        }
+        if (showFab && webViewModel.showFab) {
+            FloatingActionButton(
+                onClick = onCodeEditorNavigation,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun WebViewScreen(
     url: String,
     onCodeEditorNavigation: () -> Unit
@@ -117,16 +192,16 @@ fun WebViewScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (webViewModel.showFab) {
-                FloatingActionButton(onClick = onCodeEditorNavigation) {
-                    Icon(Icons.Default.Edit, contentDescription = "Abrir Editor")
-                }
-            }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
+        WebViewContent(
+            url = url,
+            onCodeEditorNavigation = onCodeEditorNavigation,
+            modifier = Modifier.padding(padding),
+            showFab = true
+        )
+    }
+}
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {

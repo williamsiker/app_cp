@@ -115,7 +115,7 @@ class EditorTextFieldState(
             val resultObj = JSONObject(json)
             Log.d("EditorTextFieldState", "Highlight result: $json")
             
-            val ranges = resultObj.optJSONArray("ranges")!!
+            val ranges = resultObj.optJSONArray("ranges") ?: return emptyList()
             val highlightNames = resultObj.getJSONArray("highlight_names")
             val version = resultObj.optLong("version", 0)
             val changedRanges = resultObj.optJSONArray("changed_ranges")
