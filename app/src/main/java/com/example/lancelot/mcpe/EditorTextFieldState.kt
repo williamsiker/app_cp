@@ -18,7 +18,9 @@ import com.example.lancelot.config.ConfigManager
 import com.example.lancelot.config.LanguageQueries
 import com.example.lancelot.rust.RustBridge
 import com.example.lancelot.rust.Token
+import com.example.lancelot.snippets.Snippet
 import com.example.lancelot.ui.theme.DefaultAppTheme
+import com.example.lancelot.theme.ThemeManager
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import kotlinx.coroutines.sync.withLock
@@ -28,7 +30,7 @@ import org.json.JSONObject
 class EditorTextFieldState(
     internal val textState: TextState,
     private var tokens: ArrayList<Token> = ArrayList(),
-    private val languageName: String = "cpp"
+    val languageName: String = "cpp"
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var isDisposed = false
@@ -113,7 +115,7 @@ class EditorTextFieldState(
             val resultObj = JSONObject(json)
             Log.d("EditorTextFieldState", "Highlight result: $json")
             
-            val ranges = resultObj.optJSONArray("ranges")!!
+            val ranges = resultObj.optJSONArray("ranges") ?: return emptyList()
             val highlightNames = resultObj.getJSONArray("highlight_names")
             val version = resultObj.optLong("version", 0)
             val changedRanges = resultObj.optJSONArray("changed_ranges")
@@ -468,22 +470,8 @@ class EditorTextFieldState(
         }
     }
     
-    private fun getStyleForToken(type: String): SpanStyle = when(type.lowercase()) {
-        "keyword" -> DefaultAppTheme.code.keyword
-        "function" -> DefaultAppTheme.code.keyword 
-        "type" -> DefaultAppTheme.code.value
-        "string" -> DefaultAppTheme.code.annotation
-        "number" -> DefaultAppTheme.code.value
-        "comment" -> DefaultAppTheme.code.comment
-        "constant" -> DefaultAppTheme.code.reference  
-        "variable" -> DefaultAppTheme.code.simple
-        "operator" -> DefaultAppTheme.code.punctuation
-        "property" -> DefaultAppTheme.code.simple
-        "string.system" -> DefaultAppTheme.code.annotation
-        "string.library" -> DefaultAppTheme.code.annotation
-        "string.include" -> DefaultAppTheme.code.annotation
-        "preprocessor.include" -> DefaultAppTheme.code.annotation
-        else -> DefaultAppTheme.code.keyword
+    private fun getStyleForToken(type: String): SpanStyle {
+        return ThemeManager.styleFor(type.lowercase())
     }
 
     private fun AnnotatedString.Builder.appendStyledLine(line: String, tokens: List<Token>) {
@@ -635,5 +623,25 @@ class EditorTextFieldState(
             else break
         }
         return spaces / 4
+    }
+
+    fun currentPrefix(): String {
+        val cursor = textFieldValue.selection.start
+        val beforeCursor = textFieldValue.text.substring(0, cursor)
+        val match = "[A-Za-z_]+$".toRegex().find(beforeCursor)
+        return match?.value ?: ""
+    }
+
+    fun insertSnippet(snippet: Snippet) {
+        val prefix = currentPrefix()
+        val cursor = textFieldValue.selection.start
+        val start = (cursor - prefix.length).coerceAtLeast(0)
+        val newText = textFieldValue.text.replaceRange(start, cursor, snippet.body)
+        onTextFieldValueChange(
+            textFieldValue.copy(
+                text = newText,
+                selection = TextRange(start + snippet.body.length)
+            )
+        )
     }
 }

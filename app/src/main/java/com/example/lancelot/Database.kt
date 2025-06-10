@@ -25,6 +25,13 @@ data class Styles(
     @ColumnInfo(defaultValue = "0") val isUnderline: Boolean = false
 )
 
+@Entity(tableName = "themes")
+data class CodeThemeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val colorsJson: String
+)
+
 @Dao
 interface StyleDAO {
     @Insert
@@ -40,13 +47,29 @@ interface StyleDAO {
     suspend fun getStyleById(styleId: Long): Styles?
 }
 
+@Dao
+interface ThemeDAO {
+    @Insert
+    suspend fun insertTheme(theme: CodeThemeEntity): Long
+
+    @Query("DELETE FROM themes WHERE id = :themeId")
+    suspend fun deleteTheme(themeId: Long)
+
+    @Query("SELECT * FROM themes")
+    suspend fun getAllThemes(): List<CodeThemeEntity>
+
+    @Query("SELECT * FROM themes WHERE id = :themeId")
+    suspend fun getThemeById(themeId: Long): CodeThemeEntity?
+}
+
 @Database(
-    entities = [Styles::class],
-    version = 1,
+    entities = [Styles::class, CodeThemeEntity::class],
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun styleDAO(): StyleDAO
+    abstract fun themeDAO(): ThemeDAO
 }
 
 

@@ -61,6 +61,8 @@ import com.example.lancelot.mcpe.EditorTextFieldState
 import com.example.lancelot.mcpe.EditorViewModel
 import com.example.lancelot.mcpe.TextState
 import com.example.lancelot.utils.FileUtils
+import com.example.lancelot.snippets.Snippet
+import com.example.lancelot.snippets.SnippetManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,7 +72,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun EditorScaffold(
     viewModel: EditorViewModel = viewModel(),
-    onConfigNavigation: () -> Unit
+    onConfigNavigation: () -> Unit,
+    embedded: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -90,6 +94,7 @@ fun EditorScaffold(
     val configuration = LocalConfiguration.current
 
     var isOnSnippet = remember {mutableStateOf(false)}
+    val snippetSuggestions = remember { mutableStateOf(listOf<Snippet>()) }
 
     LaunchedEffect(imeVisible, currentFile?.content?.selection) {
         currentFile?.content?.let { Editor ->
@@ -133,41 +138,7 @@ fun EditorScaffold(
     }
 
     // --- INICIO CAMBIO: TabRow para archivos abiertos ---
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    // Display name of the *actually* selected file
-                    Text(
-                        "Editor",  // Changed to a generic title since tabs will be moved
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                 },
-                actions = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        IconButton(onClick = { onConfigNavigation() }) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
-                        }
-                        HorizontalFabMenu(
-                            onFileOpener = {openFileLauncher.launch(arrayOf("*/*"))},
-                            onCreateNewFile = {showNewFileDialog = true},
-                            flagFileNN = currentFile == null,
-                            onSaveFile = {
-                                viewModel.saveCurrentFile(context.contentResolver) { suggestedName ->
-                                    // This lambda is called if "Save As" is needed
-                                    saveFileLauncher.launch(suggestedName)
-                                }
-                            }
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
+    val body: @Composable (Modifier) -> Unit = { contentModifier ->
         // Estado local para el índice seleccionado para evitar condiciones de carrera
         val currentSelectedIndex = editorState.selectedIndex
         
@@ -176,9 +147,7 @@ fun EditorScaffold(
             currentSelectedIndex.coerceIn(0, maxOf(0, openFiles.size - 1))
         }
 
-        Box(modifier = Modifier
-            .padding(innerPadding)
-            .fillMaxSize()) {
+        Box(modifier = contentModifier.fillMaxSize()) {
             if (openFiles.isNotEmpty()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Custom tab layout
@@ -261,10 +230,22 @@ fun EditorScaffold(
                                 scope.launch {
                                     viewModel.updateFileContent(file, newState)
                                 }
+                                snippetSuggestions.value =
+                                    SnippetManager.getSuggestions(
+                                        file.content.languageName,
+                                        file.content.currentPrefix()
+                                    )
                             },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
+                        )
+                        SnippetSuggestionDropdown(
+                            suggestions = snippetSuggestions.value,
+                            onSuggestionSelected = {
+                                file.content.insertSnippet(it)
+                                snippetSuggestions.value = emptyList()
+                            }
                         )
                     }
                 }
@@ -278,6 +259,47 @@ fun EditorScaffold(
                     Text("No files open.")
                 }
             }
+        }
+    }
+
+    if (embedded) {
+        body(modifier)
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Editor",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    actions = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            IconButton(onClick = { onConfigNavigation() }) {
+                                Icon(Icons.Outlined.Settings, contentDescription = "Configuración")
+                            }
+                            HorizontalFabMenu(
+                                onFileOpener = { openFileLauncher.launch(arrayOf("*/*")) },
+                                onCreateNewFile = { showNewFileDialog = true },
+                                flagFileNN = currentFile == null,
+                                onSaveFile = {
+                                    viewModel.saveCurrentFile(context.contentResolver) { suggestedName ->
+                                        saveFileLauncher.launch(suggestedName)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                )
+            },
+            modifier = modifier
+        ) { innerPadding ->
+            body(Modifier.padding(innerPadding))
         }
     }
     // --- FIN CAMBIO: TabRow para archivos abiertos ---
