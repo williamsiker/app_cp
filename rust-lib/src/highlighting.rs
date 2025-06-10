@@ -171,3 +171,18 @@ pub fn try_incremental_highlight(
     debug!("Incremental highlight completed in {:?}", start_time.elapsed());
     Some(delta)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_language_cpp() {
+        assert!(load_language("cpp").is_ok());
+    }
+
+    #[test]
+    fn load_language_unknown() {
+        assert!(load_language("unknown").is_err());
+    }
+}
