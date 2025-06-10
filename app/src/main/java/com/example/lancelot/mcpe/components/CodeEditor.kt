@@ -61,6 +61,8 @@ import com.example.lancelot.mcpe.EditorTextFieldState
 import com.example.lancelot.mcpe.EditorViewModel
 import com.example.lancelot.mcpe.TextState
 import com.example.lancelot.utils.FileUtils
+import com.example.lancelot.snippets.Snippet
+import com.example.lancelot.snippets.SnippetManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,6 +92,7 @@ fun EditorScaffold(
     val configuration = LocalConfiguration.current
 
     var isOnSnippet = remember {mutableStateOf(false)}
+    val snippetSuggestions = remember { mutableStateOf(listOf<Snippet>()) }
 
     LaunchedEffect(imeVisible, currentFile?.content?.selection) {
         currentFile?.content?.let { Editor ->
@@ -261,10 +264,22 @@ fun EditorScaffold(
                                 scope.launch {
                                     viewModel.updateFileContent(file, newState)
                                 }
+                                snippetSuggestions.value =
+                                    SnippetManager.getSuggestions(
+                                        file.content.languageName,
+                                        file.content.currentPrefix()
+                                    )
                             },
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
+                        )
+                        SnippetSuggestionDropdown(
+                            suggestions = snippetSuggestions.value,
+                            onSuggestionSelected = {
+                                file.content.insertSnippet(it)
+                                snippetSuggestions.value = emptyList()
+                            }
                         )
                     }
                 }
