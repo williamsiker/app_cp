@@ -30,8 +30,8 @@ fun WebEditorPagerScreen(
 ) {
     val pagerState = rememberPagerState(
         initialPage = 0,
-        initialPageOffsetFraction = TODO(),
-        pageCount = TODO()
+        initialPageOffsetFraction = 0f,
+        pageCount = {2}
     )
     val browserViewModel: ViewModel = viewModel()
     val lastUrl = browserViewModel.lastUrl.collectAsState().value ?: startUrl
