@@ -19,7 +19,7 @@ fun ConfigPanel(
     viewModel: ConfigurationViewModel = koinViewModel()
 ) {
     // Memoizar la lista de tabs para evitar recreaciones
-    val tabs = remember { listOf("Languages", "Keywords", "Styles") }
+    val tabs = remember { listOf("Languages", "Keywords", "Styles", "Themes") }
     
     // Usar rememberSaveable para mantener el estado a través de recreaciones
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -29,7 +29,8 @@ fun ConfigPanel(
     
     // Derivar estados computados de manera eficiente
     val styles by remember(state.styles) { derivedStateOf { state.styles } }
-    val isLoading by remember { derivedStateOf { styles.isEmpty() } }
+    val themes by remember(state.themes) { derivedStateOf { state.themes } }
+    val isLoading by remember { derivedStateOf { styles.isEmpty() && themes.isEmpty() } }
 
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -74,6 +75,12 @@ fun ConfigPanel(
                         styles = styles,
                         onAddStyle = remember(viewModel) { viewModel::addStyle },
                         onDeleteStyle = remember(viewModel) { viewModel::deleteStyle }
+                    )
+                    3 -> ThemesTab(
+                        themes = themes,
+                        onAddTheme = remember(viewModel) { viewModel::addTheme },
+                        onDeleteTheme = remember(viewModel) { viewModel::deleteTheme },
+                        onSelectTheme = remember(viewModel) { viewModel::setSelectedTheme }
                     )
                     // Otros casos se cargarán solo cuando sean necesarios
                 }
