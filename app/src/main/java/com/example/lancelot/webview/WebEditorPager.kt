@@ -7,6 +7,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -20,7 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.lancelot.mcpe.components.EditorScaffold
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun WebEditorPagerScreen(
     startUrl: String = "https://atcoder.jp",
@@ -52,7 +53,6 @@ fun WebEditorPagerScreen(
         }
     ) { padding ->
         HorizontalPager(
-            pageCount = 2,
             state = pagerState,
             modifier = Modifier.padding(padding)
         ) { page ->

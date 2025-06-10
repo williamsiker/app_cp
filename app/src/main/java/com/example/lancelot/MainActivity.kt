@@ -36,13 +36,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable<ConfigPanel> { ConfigPanel(onPopStackNav = { navController.popBackStack() }) }
-<<<<<<< HEAD
-                        composable<DebugPanel> { DebugPanelScreen() }
-=======
+
+                        composable<DebugPanel> { DebugPanelScreen(onBack = {} ) }
                         composable<DebugPanel> {
                             DebugPanelScreen(onBack = { navController.popBackStack() })
                         }
->>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
                     }
                 }
             }

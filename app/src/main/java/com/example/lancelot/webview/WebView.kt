@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
@@ -200,54 +201,5 @@ fun WebViewScreen(
             modifier = Modifier.padding(padding),
             showFab = true
         )
-    }
-}
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-
-                        webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                super.onPageStarted(view, url, favicon)
-                                isLoading = true
-                                view?.let {
-                                    webViewModel.updateNavigationState(
-                                        it.canGoBack(),
-                                        it.canGoForward()
-                                    )
-                                }
-                            }
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                isLoading = false
-                                view?.let {
-                                    webViewModel.updateNavigationState(
-                                        it.canGoBack(),
-                                        it.canGoForward()
-                                    )
-                                }
-                                url?.let { webViewModel.updateLastUrl(it) }
-                            }
-                        }
-
-                        loadUrl(url)
-                    }.also { webView = it }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            )
-            if (isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                )
-            }
-        }
     }
 }

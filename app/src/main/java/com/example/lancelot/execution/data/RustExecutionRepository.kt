@@ -16,7 +16,7 @@ class RustExecutionRepository : ExecutionRepository {
         }
         ExecutionResult(
             output = obj.optString("output"),
-            compileOutput = obj.optString("compile_output", null)
+            compileOutput = obj.optString("compile_output", "null")
         )
     }
 }

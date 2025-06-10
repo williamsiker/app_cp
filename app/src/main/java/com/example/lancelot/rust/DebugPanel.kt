@@ -1,9 +1,6 @@
 package com.example.lancelot.rust
 
-<<<<<<< HEAD
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.Composable
-=======
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
->>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
 import com.example.lancelot.execution.ExecutionPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,9 +21,8 @@ fun DebugPanelScreen(onBack: () -> Unit) {
 #include <iostream>
 int main(){std::cout<<"hello";return 0;}
     """.trimIndent()
-<<<<<<< HEAD
+
     ExecutionPanel(code = code, language = "cpp", input = "")
-=======
     Scaffold(
         topBar = {
             TopAppBar(
@@ -43,11 +38,8 @@ int main(){std::cout<<"hello";return 0;}
         ExecutionPanel(
             code = code,
             language = "cpp",
-            input = "",
-            embedded = true,
-            modifier = Modifier.padding(padding)
+            input = ""
         )
     }
->>>>>>> cb2203e70159d386ad1ab6ec7ec89575b55e865a
 }
 

@@ -12,11 +12,7 @@ object RustBridge {
     private val initMutex = Mutex()
     private var isInitialized = false
     
-    init {
-        initializeSafely()
-    }
-    
-    private fun initializeSafely() {
+    private suspend fun initializeSafely() {
         runCatching {
             if (!isInitialized) {
                 initMutex.withLock {
@@ -33,7 +29,7 @@ object RustBridge {
         }
     }
 
-    fun highlightSafe(
+    suspend fun highlightSafe(
         code: String,
         languageName: String,
         h: String,
@@ -73,7 +69,7 @@ object RustBridge {
         }
     )
 
-    fun realTimeHighlightSafe(
+    suspend fun realTimeHighlightSafe(
         code: String,
         languageName: String,
         h: String,
@@ -113,9 +109,9 @@ object RustBridge {
         }
     )
 
-    private external fun initLogger()
+    external fun initLogger()
     private external fun helloRust() : String
-    private external fun highlight(
+    external fun highlight(
         code: String,
         languageName: String,
         h: String,
