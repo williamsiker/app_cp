@@ -1,9 +1,14 @@
 package com.example.lancelot.rust
 
+import android.util.Log
+import com.example.lancelot.common.RustResult
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.CompletableFuture
 
 object RustBridge {
     private const val TAG = "RustBridge"
+    private const val MAX_TEXT_LENGTH = 100_000
     private val initMutex = Mutex()
     private var isInitialized = false
     
@@ -68,6 +73,46 @@ object RustBridge {
         }
     )
 
+    fun realTimeHighlightSafe(
+        code: String,
+        languageName: String,
+        h: String,
+        i: String,
+        l: String,
+        t: String,
+        hn: String
+    ): RustResult<String> = runCatching {
+        if (!isInitialized) {
+            initializeSafely()
+        }
+
+        if (code.isBlank()) {
+            return RustResult.Success("")
+        }
+
+        val result = realTimeHighlight(
+            code.take(MAX_TEXT_LENGTH),
+            languageName,
+            h.ifBlank { "{}" },
+            i.ifBlank { "{}" },
+            l.ifBlank { "{}" },
+            t.ifBlank { "{}" },
+            hn.ifBlank { "[]" }
+        )
+
+        if (result.isBlank()) {
+            RustResult.Error("Highlighting failed: empty result")
+        } else {
+            RustResult.Success(result)
+        }
+    }.fold(
+        onSuccess = { it },
+        onFailure = {
+            Log.e(TAG, "Error in highlighting", it)
+            RustResult.Error("Highlighting failed: ${it.message}")
+        }
+    )
+
     private external fun initLogger()
     private external fun helloRust() : String
     private external fun highlight(
@@ -80,8 +125,20 @@ object RustBridge {
         hn: String
     ) : String
 
+    private external fun realTimeHighlight(
+        code: String,
+        languageName: String,
+        h: String,
+        i: String,
+        l: String,
+        t: String,
+        hn: String
+    ) : String
+
 
     external fun executeCode(code: String, languageName: String, input: String) : String
+
+    external fun executeCodeDetailed(code: String, languageName: String, input: String) : String
 
     external fun ktFuture(
         code: String,

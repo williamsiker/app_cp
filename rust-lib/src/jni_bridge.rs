@@ -10,7 +10,7 @@ use log::{debug, error};
 use std::time::Instant;
 use tokio::runtime::Builder;
 
-use crate::code_exec::execute_code;
+use crate::code_exec::{execute_code, execute_code_detailed};
 use crate::cache::{get_cached_theme, PARSE_CACHE, PARSER_CACHE, get_highlight_cache, update_highlight_cache};
 use crate::highlighting::{load_language, process_highlights, try_incremental_highlight};
 
@@ -202,6 +202,32 @@ pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_highligh
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_com_example_lancelot_rust_RustBridge_realTimeHighlight(
+    env: JNIEnv,
+    class: JClass,
+    code: JString,
+    language_name_jstr: JString,
+    highlights_scm_jstr: JString,
+    injections_scm_jstr: JString,
+    locals_scm_jstr: JString,
+    theme_json_jstr: JString,
+    highlight_names_json_jstr: JString,
+) -> jstring {
+    // Simple wrapper that reuses the optimized highlight implementation
+    Java_com_example_lancelot_rust_RustBridge_highlight(
+        env,
+        class,
+        code,
+        language_name_jstr,
+        highlights_scm_jstr,
+        injections_scm_jstr,
+        locals_scm_jstr,
+        theme_json_jstr,
+        highlight_names_json_jstr,
+    )
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_example_lancelot_rust_RustBridge_executeCode(
     mut env: JNIEnv,
     _class: JClass,
@@ -224,6 +250,34 @@ pub extern "system" fn Java_com_example_lancelot_rust_RustBridge_executeCode(
 
     // Convertimos resultado a jstring para devolver a Java
     let output = result.unwrap_or_else(|err| err);
+
+    env.new_string(output).unwrap().into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_example_lancelot_rust_RustBridge_executeCodeDetailed(
+    mut env: JNIEnv,
+    _class: JClass,
+    code: JString,
+    language_name: JString,
+    input: JString,
+) -> jstring {
+    let code: String = env.get_string(&code).unwrap().into();
+    let language_name: String = env.get_string(&language_name).unwrap().into();
+    let input: String = env.get_string(&input).unwrap().into();
+
+    let rt = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let result = rt.block_on(async {
+        execute_code_detailed(&code, &language_name, &input).await
+    });
+
+    let output = match result {
+        Ok(res) => serde_json::to_string(&res).unwrap_or_else(|_| "{}".into()),
+        Err(err) => format!("{{\"error\":\"{}\"}}", err.replace('"', "'")),
+    };
 
     env.new_string(output).unwrap().into_raw()
 }
